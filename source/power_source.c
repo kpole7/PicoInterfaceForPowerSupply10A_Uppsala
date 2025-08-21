@@ -1,32 +1,59 @@
+
+#include <assert.h>
+
 #include "pico/stdlib.h"
+#include "hardware/irq.h"
 #include "hardware/timer.h"
 
-#define OUT_PIN 6
-#define PERIOD_US 25
+#define OUT_PIN 	6
 
-// Flaga stanu wyjścia (można też po prostu toggle)
+#define PERIOD_US 	25
+#define TIME_ON		5
+#define TIME_OFF	(PERIOD_US-TIME_ON)
+
+#define ALARM_NUM 	0
+#define ALARM_IRQ 	TIMER_IRQ_0
+
+volatile uint64_t target;
 volatile bool pin_state = false;
 
-// Funkcja obsługi przerwania timerowego
-bool repeating_timer_callback(struct repeating_timer *t) {
-    pin_state = !pin_state;
+// Handler przerwania z hardware timer (alarm)
+void timer_irq() {
     gpio_put(OUT_PIN, pin_state);
-    // Zwracamy true, aby timer był powtarzany
-    return true;
+    // Clear the alarm irq
+    hw_clear_bits(&timer_hw->intr, 1u << ALARM_NUM);
+
+    if (pin_state){
+        target += TIME_ON;
+        timer_hw->alarm[ALARM_NUM] = (uint32_t) target;
+        pin_state = false;
+    }
+    else{
+        target += TIME_OFF;
+        timer_hw->alarm[ALARM_NUM] = (uint32_t) target;
+        pin_state = true;
+    }
 }
 
 int main() {
+
+	assert( ALARM_IRQ == timer_hardware_alarm_get_irq_num(timer_hw, ALARM_NUM));
+
     stdio_init_all();
     gpio_init(OUT_PIN);
     gpio_set_dir(OUT_PIN, GPIO_OUT);
 
-    struct repeating_timer timer;
-    // Uruchamiamy timer hardware, okres 25us
-    add_repeating_timer_us(PERIOD_US, repeating_timer_callback, NULL, &timer);
+    // Enable the interrupt for our alarm (the timer outputs 4 alarm irqs)
+    hw_set_bits(&timer_hw->inte, 1u << ALARM_NUM);
+    // Set irq handler for alarm irq
+    irq_set_exclusive_handler(ALARM_IRQ, timer_irq);
 
-    // Pętla główna do innych zadań
+    target = timer_hw->timerawl + PERIOD_US;
+    timer_hw->alarm[ALARM_NUM] = (uint32_t) target;
+    irq_set_enabled(ALARM_IRQ, true);
+
     while (true) {
-        // Tu możesz robić dowolne inne rzeczy
+
         tight_loop_contents();
     }
 }
