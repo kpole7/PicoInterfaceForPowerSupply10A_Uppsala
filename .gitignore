@@ -1,0 +1,9 @@
+# Ignoruj katalog temporary
+/temporary/
+
+# Ignoruj pliki i katalogi Eclipse
+/.settings/
+.cproject
+.project
+
+

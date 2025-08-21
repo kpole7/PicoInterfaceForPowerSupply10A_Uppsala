@@ -1,0 +1,19 @@
+add_executable(power_source_10A_Uppsala
+    ${CMAKE_CURRENT_LIST_DIR}/source/power_source.c
+)
+
+# pull in common dependencies
+target_link_libraries(power_source_10A_Uppsala
+	pico_stdlib
+	pico_time
+	hardware_timer
+	hardware_uart
+	hardware_irq
+)
+
+# enable usb output, disable uart output
+pico_enable_stdio_usb(power_source_10A_Uppsala 1)
+pico_enable_stdio_uart(power_source_10A_Uppsala 0)
+
+# create map/bin/hex/uf2 file etc.
+pico_add_extra_outputs(power_source_10A_Uppsala)
