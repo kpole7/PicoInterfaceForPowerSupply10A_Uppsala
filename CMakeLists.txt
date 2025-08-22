@@ -9,6 +9,7 @@ target_link_libraries(power_source_10A_Uppsala
 	hardware_timer
 	hardware_uart
 	hardware_irq
+	hardware_pwm
 )
 
 # enable usb output, disable uart output

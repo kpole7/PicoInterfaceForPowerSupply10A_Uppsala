@@ -1,58 +1,31 @@
-
-#include <assert.h>
-
 #include "pico/stdlib.h"
-#include "hardware/irq.h"
-#include "hardware/timer.h"
+#include "hardware/pwm.h"
+#include "hardware/clocks.h"
 
-#define OUT_PIN 		6
-#define DEBUG_PIN 		7
-
-#define PERIOD_US 		25
-#define PULSE_TIME_ON	3
-
-#define ALARM_NUM 		0
-#define ALARM_IRQ 		TIMER_IRQ_0
-
-volatile uint64_t target;
-
-// Handler przerwania z hardware timer (alarm)
-void timer_irq() {
-	gpio_put(OUT_PIN, true);
-
-	// Clear the alarm irq
-	hw_clear_bits(&timer_hw->intr, 1u << ALARM_NUM);
-	target += PERIOD_US;
-	timer_hw->alarm[ALARM_NUM] = (uint32_t) target;
-
-	sleep_us( PULSE_TIME_ON );
-	gpio_put(OUT_PIN, false);
-}
+#define PWM_PIN 6
+#define PWM_FREQ 40000      // 40kHz
 
 int main() {
+    gpio_set_function(PWM_PIN, GPIO_FUNC_PWM); // Ustaw pin jako PWM
 
-	assert( ALARM_IRQ == timer_hardware_alarm_get_irq_num(timer_hw, ALARM_NUM));
+    uint slice_num = pwm_gpio_to_slice_num(PWM_PIN);
 
-    stdio_init_all();
+    // Ustal częstotliwość PWM
+    uint32_t sys_clk = clock_get_hz(clk_sys); // Zwykle 125 MHz
+    uint32_t divider = 1;
+    uint32_t wrap = sys_clk / (PWM_FREQ * divider) - 1;
 
-    gpio_init(OUT_PIN);
-    gpio_set_dir(OUT_PIN, GPIO_OUT);
+    pwm_set_clkdiv(slice_num, divider);
+    pwm_set_wrap(slice_num, wrap);
 
-    gpio_init(DEBUG_PIN);
-    gpio_set_dir(DEBUG_PIN, GPIO_OUT);
+    // Ustal współczynnik wypełnienia (np. 50%)
+    pwm_set_chan_level(slice_num, pwm_gpio_to_channel(PWM_PIN), wrap / 8);
 
-    // Enable the interrupt for our alarm (the timer outputs 4 alarm irqs)
-    hw_set_bits(&timer_hw->inte, 1u << ALARM_NUM);
-    // Set irq handler for alarm irq
-    irq_set_exclusive_handler(ALARM_IRQ, timer_irq);
-
-    target = timer_hw->timerawl + PERIOD_US;
-    timer_hw->alarm[ALARM_NUM] = (uint32_t) target;
-    irq_set_enabled(ALARM_IRQ, true);
+    pwm_set_enabled(slice_num, true);
 
     while (true) {
-    	gpio_put(DEBUG_PIN, true);
-    	gpio_put(DEBUG_PIN, false);
+        // Pętla główna jest wolna, PWM działa sprzętowo
+        tight_loop_contents();
     }
 }
 
