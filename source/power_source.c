@@ -2,30 +2,38 @@
 #include "hardware/pwm.h"
 #include "hardware/clocks.h"
 
-#define PWM_PIN 6
-#define PWM_FREQ 40000      // 40kHz
+#define PWM_PIN 	6		// GPIO6
+#define PWM_FREQ 	40000	// 40kHz
+
+// This function configures the pin as a pulse generator using hardware PWM
+void initializePwm(void);
 
 int main() {
-    gpio_set_function(PWM_PIN, GPIO_FUNC_PWM); // Ustaw pin jako PWM
 
-    uint slice_num = pwm_gpio_to_slice_num(PWM_PIN);
-
-    // Ustal częstotliwość PWM
-    uint32_t sys_clk = clock_get_hz(clk_sys); // Zwykle 125 MHz
-    uint32_t divider = 1;
-    uint32_t wrap = sys_clk / (PWM_FREQ * divider) - 1;
-
-    pwm_set_clkdiv(slice_num, divider);
-    pwm_set_wrap(slice_num, wrap);
-
-    // Ustal współczynnik wypełnienia (np. 50%)
-    pwm_set_chan_level(slice_num, pwm_gpio_to_channel(PWM_PIN), wrap / 8);
-
-    pwm_set_enabled(slice_num, true);
+	initializePwm();
 
     while (true) {
-        // Pętla główna jest wolna, PWM działa sprzętowo
+        // main loop
         tight_loop_contents();
     }
 }
 
+// This function configures the pin as a pulse generator using hardware PWM
+void initializePwm(void){
+    gpio_set_function(PWM_PIN, GPIO_FUNC_PWM); // Set pin as PWM
+
+    uint SliceNumber = pwm_gpio_to_slice_num(PWM_PIN);
+
+    // Set PWM frequency
+    uint32_t SystemClock = clock_get_hz(clk_sys); // Usually 125 MHz
+    uint32_t Divider = 1;
+    uint32_t Wrap = SystemClock / (PWM_FREQ * Divider) - 1;
+
+    pwm_set_clkdiv(SliceNumber, Divider);
+    pwm_set_wrap(SliceNumber, Wrap);
+
+    // Set fill factor
+    pwm_set_chan_level(SliceNumber, pwm_gpio_to_channel(PWM_PIN), Wrap / 8);
+
+    pwm_set_enabled(SliceNumber, true);
+}
