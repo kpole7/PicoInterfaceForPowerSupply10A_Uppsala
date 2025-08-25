@@ -2,6 +2,8 @@
 #include "hardware/pwm.h"
 #include "hardware/clocks.h"
 
+#include "serial_transmission.h"
+
 #define PWM_PIN 	6		// GPIO6
 #define PWM_FREQ 	40000	// 40kHz
 
@@ -10,11 +12,15 @@ void initializePwm(void);
 
 int main() {
 
+	serialPortInitialization();
 	initializePwm();
 
     while (true) {
         // main loop
-        tight_loop_contents();
+    	serialPortReceiver();
+
+
+
     }
 }
 
