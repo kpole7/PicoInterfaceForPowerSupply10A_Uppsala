@@ -1,3 +1,4 @@
+// serial_transmission.c
 
 #include "hardware/timer.h"
 #include "hardware/uart.h"
@@ -5,6 +6,10 @@
 #include "hardware/gpio.h"
 
 #include "serial_transmission.h"
+
+//---------------------------------------------------------------------------------------------------
+// Directives
+//---------------------------------------------------------------------------------------------------
 
 #define UART_ID			uart0
 #define UART_BAUD_RATE	4800
@@ -15,18 +20,26 @@
 #define UART_PARITY		UART_PARITY_NONE
 #define UART_BUFFER_MAX_SIZE	20
 
-
+//---------------------------------------------------------------------------------------------------
+// Local variables
+//---------------------------------------------------------------------------------------------------
 
 static char UartInputBuffer[UART_BUFFER_MAX_SIZE+2];
 static char UartInputIndex;
 static uint8_t UartInputHead;
 
-
+//---------------------------------------------------------------------------------------------------
+// Function prototypes
+//---------------------------------------------------------------------------------------------------
 
 static void serialPortInterruptHandler( void );
 
 
+//---------------------------------------------------------------------------------------------------
+// Function definitions
+//---------------------------------------------------------------------------------------------------
 
+/// @brief This function initializes hardware port (UART) and initializes state machines for serial communication
 void serialPortInitialization(void){
 	UartInputIndex = 0;
 
@@ -45,6 +58,7 @@ void serialPortInitialization(void){
 
 }
 
+/// @brief This function drives the state machine that receives commands via serial port
 void serialPortReceiver(void){
 	char temporary;
 
@@ -60,7 +74,7 @@ void serialPortReceiver(void){
 	}
 }
 
-
+/// @brief This is an interrupt handler for receiving and transmitting via UART
 static void serialPortInterruptHandler( void ){
    	while(uart_is_readable(UART_ID)){
    		(void)uart_getc(UART_ID);

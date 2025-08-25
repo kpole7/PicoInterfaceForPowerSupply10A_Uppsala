@@ -1,14 +1,42 @@
+// power_source.c
+/// @file power_source.c
+/// @brief **Program for RaspberryPi RP2040 acting as an interface for a 10A power supply (Uppsala)**
+///
+/// ### Details
+/// The interface is implemented by the RP2040 processor.
+/// The program implements an interface to the power supply consisting of the following elements:
+/// * communication with the power supply DAC via I2C,
+/// * logic signals (GPIO),
+/// * pulse signal generation (PWM),
+/// * analog signal measurement (ADC),
+/// * reading of logic signals from the power supply (direction of the power supply output current).
+/// * On the other hand, the program supports communication with the master unit via UART (RS-232).
+/// The communication protocol is implemented by the `serial_transmission.c` module.
+
+
 #include "pico/stdlib.h"
 #include "hardware/pwm.h"
 #include "hardware/clocks.h"
 
 #include "serial_transmission.h"
 
+//---------------------------------------------------------------------------------------------------
+// Directives
+//---------------------------------------------------------------------------------------------------
+
 #define PWM_PIN 	6		// GPIO6
 #define PWM_FREQ 	40000	// 40kHz
 
-// This function configures the pin as a pulse generator using hardware PWM
+//---------------------------------------------------------------------------------------------------
+// Function prototypes
+//---------------------------------------------------------------------------------------------------
+
+/// @brief This function configures the pin as a pulse generator using hardware PWM
 void initializePwm(void);
+
+//---------------------------------------------------------------------------------------------------
+// Main routine
+//---------------------------------------------------------------------------------------------------
 
 int main() {
 
@@ -24,7 +52,11 @@ int main() {
     }
 }
 
-// This function configures the pin as a pulse generator using hardware PWM
+//---------------------------------------------------------------------------------------------------
+// Function definitions
+//---------------------------------------------------------------------------------------------------
+
+/// @brief This function configures the pin as a pulse generator using hardware PWM
 void initializePwm(void){
     gpio_set_function(PWM_PIN, GPIO_FUNC_PWM); // Set pin as PWM
 
