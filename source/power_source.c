@@ -1,17 +1,21 @@
 // power_source.c
 /// @file power_source.c
-/// @brief **Program for RaspberryPi RP2040 acting as an interface for a 10A power supply (Uppsala)**
+/// @brief **Program for the RaspberryPi RP2040-based interface for a 10A power supply (Uppsala)**
 ///
 /// ### Details
-/// The interface is implemented by the RP2040 processor.
-/// The program implements an interface to the power supply consisting of the following elements:
-/// * communication with the power supply DAC via I2C,
-/// * logic signals (GPIO),
-/// * pulse signal generation (PWM),
-/// * analog signal measurement (ADC),
-/// * reading of logic signals from the power supply (direction of the power supply output current).
-/// * On the other hand, the program supports communication with the master unit via UART (RS-232).
-/// The communication protocol is implemented by the `serial_transmission.c` module.
+///
+/// The interface is implemented on the RP2040 processor. The program performs the following functions:
+/// #### 1.   Communication with 8 power supplies via I2C and logic signals (GPIO).
+/// - Addressing power supplies (I2C).
+/// - Controlling digital-to-analog converters (I2C and GPIO).
+/// - Reading logic signals from 8 power supplies representing the direction of the power supplies' output currents (GPIO).
+/// #### 2.   Generating a pulse signal (PWM).
+/// #### 3.   Analog measurement of signals from 8 power supplies.
+/// - Channel multiplexing (GPIO).
+/// - Analog voltage measurement (ADC0).
+/// #### 4.   Communication with the main unit via a serial port (UART0).
+/// The communication protocol is implemented in the `serial_transmission.c` module.
+
 
 #include <stdbool.h>	// just for Eclipse
 #include <stdio.h>		// just for debugging
