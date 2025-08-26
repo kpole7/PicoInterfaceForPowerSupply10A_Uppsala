@@ -13,6 +13,8 @@
 /// * On the other hand, the program supports communication with the master unit via UART (RS-232).
 /// The communication protocol is implemented by the `serial_transmission.c` module.
 
+#include <stdbool.h>	// just for Eclipse
+#include <stdio.h>		// just for debugging
 
 #include "pico/stdlib.h"
 #include "hardware/pwm.h"
@@ -27,9 +29,15 @@
 #define PWM_PIN 	6		// GPIO6
 #define PWM_FREQ 	40000	// 40kHz
 
+/// @brief This directive tells that the LED on pico PCB is connected to GPIO25 port
+#define PICO_ON_BOARD_LED_PIN		25
+
 //---------------------------------------------------------------------------------------------------
 // Function prototypes
 //---------------------------------------------------------------------------------------------------
+
+/// @brief This function initializes and turns on the LED on pico board.
+void turnOnLedOnBoard(void);
 
 /// @brief This function configures the pin as a pulse generator using hardware PWM
 void initializePwm(void);
@@ -39,9 +47,13 @@ void initializePwm(void);
 //---------------------------------------------------------------------------------------------------
 
 int main() {
+	stdio_init_all();
 
 	serialPortInitialization();
 	initializePwm();
+	turnOnLedOnBoard();
+
+	printf("Hello guys\n");
 
     while (true) {
         // main loop
@@ -55,6 +67,13 @@ int main() {
 //---------------------------------------------------------------------------------------------------
 // Function definitions
 //---------------------------------------------------------------------------------------------------
+
+/// @brief This function initializes and turns on the LED on pico board.
+void turnOnLedOnBoard(void){
+	gpio_init(PICO_ON_BOARD_LED_PIN);
+	gpio_set_dir(PICO_ON_BOARD_LED_PIN, GPIO_OUT);
+	gpio_put(PICO_ON_BOARD_LED_PIN, true);
+}
 
 /// @brief This function configures the pin as a pulse generator using hardware PWM
 void initializePwm(void){
