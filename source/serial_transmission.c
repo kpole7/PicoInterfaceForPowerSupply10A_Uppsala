@@ -26,7 +26,7 @@
 #define UART_BUFFER_SIZE					32
 #define SILENCE_DETECTION_IN_MICROSECONDS	6250		// 3 bytes for the given baud rate
 #define LONGEST_COMMAND_LENGTH				12			// ???
-#define REPLACEMENT_FOR_UNPRINTABLE			127
+#define REPLACEMENT_FOR_UNPRINTABLE			'~'
 
 
 //---------------------------------------------------------------------------------------------------
