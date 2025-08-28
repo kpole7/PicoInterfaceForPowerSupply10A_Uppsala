@@ -72,7 +72,10 @@ int main() {
         // main loop
     	serialPortReceiver();
 
-
+    	int8_t Temporary = getEventPushButtonChange();
+    	if (Temporary != 0){
+    		printf("It's me, %d\n", Temporary);
+    	}
 
     }
 }
