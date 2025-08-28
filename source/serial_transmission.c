@@ -41,6 +41,7 @@ static uint64_t WhenReceivedLastByte;
 // Function prototypes
 //---------------------------------------------------------------------------------------------------
 
+/// @brief This is an interrupt handler for receiving and transmitting via UART
 static void serialPortInterruptHandler( void );
 
 
@@ -48,7 +49,6 @@ static void serialPortInterruptHandler( void );
 // Function definitions
 //---------------------------------------------------------------------------------------------------
 
-/// @brief This function initializes hardware port (UART) and initializes state machines for serial communication
 void serialPortInitialization(void){
     uart_init(UART_ID, UART_BAUD_RATE);
     gpio_set_function(UART_TX_PIN, UART_FUNCSEL_NUM(UART_ID, UART_TX_PIN));
@@ -67,7 +67,6 @@ void serialPortInitialization(void){
 	WhenReceivedLastByte = (uint64_t)0;
 }
 
-/// @brief This function drives the state machine that receives commands via serial port
 void serialPortReceiver(void){
 	if (UartInputHead != UartInputTail){
 		// The input buffer is not empty
@@ -113,7 +112,6 @@ void serialPortReceiver(void){
 
 }
 
-/// @brief This is an interrupt handler for receiving and transmitting via UART
 static void serialPortInterruptHandler( void ){
    	while(uart_is_readable(UART_ID)){
    		UartInputBuffer[UartInputHead] = uart_getc(UART_ID);
