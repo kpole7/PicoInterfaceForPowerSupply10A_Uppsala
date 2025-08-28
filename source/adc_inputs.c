@@ -4,7 +4,7 @@
 #include "hardware/adc.h"
 
 
-#define ADC_RAW_BUFFER_SIZE 	256
+#define ADC_RAW_BUFFER_SIZE 	64
 #define GPIO_FOR_ADC0			26
 #define GPIO_FOR_ADC1			27
 

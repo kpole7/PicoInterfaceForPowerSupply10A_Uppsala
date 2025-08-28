@@ -1,0 +1,45 @@
+// rstl_protocol.h
+/// @file rstl_protocol.h
+/// @brief This module provides a higher layer of communication with the master unit
+///
+/// The module acts as a slave. It receives commands from the master unit and
+/// sends the responses.  The protocol consists from the following text commands:
+///
+/// 1.1. Command **Measure Current**: `MC\r\n`
+///
+/// 1.2. Exemplary response: `-10.34\r\n\n>`
+///
+/// 2.1. Exemplary command **Program Current**: `PC-5.67\r\n`
+///
+/// 2.2. Response: `\r\n\n>`
+///
+/// 3.1. Command **Place software revision**: `?M\r\n`
+///
+/// 3.2. Exemplary response: `Rev. abcdefghijklmnopqrst\r\n\n>`
+///
+/// 4.1. Command **Current DAC programming value**: `?C\r\n`
+///
+/// 4.2. Exemplary response: `-2.34\r\n\n>`
+///
+/// 5.1. Command **Get current direction**: `?Y\r\n`
+///
+/// 5.2. Exemplary response: `1\r\n\n>`
+///
+/// 6.1. Exemplary command **Select channel**: `Z2\r\n`
+///
+/// 6.2. Response: `\r\n\n>`
+///
+/// 6.1. Command **Get channel**: `?Z\r\n`
+///
+/// 6.2. Exemplary response: `1\r\n\n>`
+///
+
+#ifndef SOURCE_RSTL_PROTOCOL_H_
+#define SOURCE_RSTL_PROTOCOL_H_
+
+
+
+
+
+
+#endif /* SOURCE_RSTL_PROTOCOL_H_ */
