@@ -27,6 +27,7 @@
 #include "serial_transmission.h"
 #include "pwm_output.h"
 #include "adc_inputs.h"
+#include "debugging.h"
 
 //---------------------------------------------------------------------------------------------------
 // Directives
@@ -58,6 +59,8 @@ int main() {
 
 	serialPortInitialization();
 	initializePwm();
+	initializeAdcMeasurements();
+	initializeDebugDevices();
 	turnOnLedOnBoard();
 
     // Start periodic interrupt

@@ -11,6 +11,7 @@ add_executable(power_source_10A_Uppsala
     ${CMAKE_CURRENT_LIST_DIR}/source/pwm_output.c
     ${CMAKE_CURRENT_LIST_DIR}/source/adc_inputs.c
     ${CMAKE_CURRENT_LIST_DIR}/source/rstl_protocol.c
+    ${CMAKE_CURRENT_LIST_DIR}/source/debugging.c
 )
 
 # pull in common dependencies
