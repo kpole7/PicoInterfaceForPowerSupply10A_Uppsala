@@ -18,4 +18,8 @@ bool getPushButtonState(void);
 /// @return -1 if the status has changed to "pressed"
 int8_t getEventPushButtonChange(void);
 
+void changeDebugPin1( bool NewValue );
+
+void changeDebugPin2( bool NewValue );
+
 #endif /* SOURCE_DEBUGGING_H_ */

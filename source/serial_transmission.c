@@ -8,6 +8,7 @@
 #include "hardware/gpio.h"
 
 #include "serial_transmission.h"
+#include "debugging.h"
 
 #include <stdio.h>		// just for debugging
 
@@ -34,11 +35,11 @@
 //---------------------------------------------------------------------------------------------------
 
 static char UartInputBuffer[UART_BUFFER_SIZE];
-static uint8_t UartInputHead, UartInputTail;
-static uint64_t WhenReceivedLastByte;
+static volatile uint8_t UartInputHead, UartInputTail;
+static volatile uint64_t WhenReceivedLastByte;
 
 static char UartOutputBuffer[UART_BUFFER_SIZE];
-static uint8_t UartOutputHead, UartOutputTail;
+static volatile uint8_t UartOutputHead, UartOutputTail;
 
 //---------------------------------------------------------------------------------------------------
 // Function prototypes
@@ -104,64 +105,75 @@ void serialPortReceiver(void){
 				printf("]\n");
 #endif
 
-
-
-
 			}
 		}
 	}
-
-
-
 }
 
 static void serialPortInterruptHandler( void ){
-   	while(uart_is_readable(UART_ID)){
-   		UartInputBuffer[UartInputHead] = uart_getc(UART_ID);
-   		UartInputHead++;
-   		if (UartInputHead >= UART_BUFFER_SIZE){
-   			UartInputHead = 0;
-   		}
-   		if (UartInputHead == UartInputTail){
-   			UartInputTail++;
-   	   		if (UartInputTail >= UART_BUFFER_SIZE){
-   	   			UartInputTail = 0;
-   	   		}
-   		}
-   		WhenReceivedLastByte = time_us_64();
-   	}
+	changeDebugPin2(true);
+
+	if (uart_is_readable(UART_ID)){
+	   	do{
+	   		UartInputBuffer[UartInputHead] = uart_getc(UART_ID);
+	   		UartInputHead++;
+	   		if (UartInputHead >= UART_BUFFER_SIZE){
+	   			UartInputHead = 0;
+	   		}
+	   		if (UartInputHead == UartInputTail){
+	   			UartInputTail++;
+	   	   		if (UartInputTail >= UART_BUFFER_SIZE){
+	   	   			UartInputTail = 0;
+	   	   		}
+	   		}
+	   		WhenReceivedLastByte = time_us_64();
+	   	}while(uart_is_readable(UART_ID));
+	}
+	else{
+	   	if (UartOutputHead <= UART_BUFFER_SIZE){ // protection just in case
+	   	   	if((UartOutputTail < UartOutputHead) && uart_is_writable( UART_ID )){
+	   	   		uart_putc_raw( UART_ID, UartOutputBuffer[UartOutputTail] ); // uart_putc is not good due to its CRLF support
+	   	   		UartOutputTail++;
+	   	   	}
+	   	   	if (UartOutputTail >= UartOutputHead){
+	   	   		uart_set_irq_enables( UART_ID, true, false );	// there is nothing more to send so stop interrupts from the sender
+	   	   	}
+	   	}
+	   	else{
+	   		while(1){
+	   			; // intentionally hang the program
+	   		}
+	   	}
+	}
+
+	changeDebugPin2(false);
 }
 
-
-
-
-void serialPortTransmitter(void){
+int8_t transmitViaSerialPort(void){
 	if (0 == UartOutputHead){
-		return; // The buffer is empty
+		return -1; // The buffer is empty; it is nothing to do
 	}
 	if (UartOutputTail != 0){
-		return; // printout is going on (it should never happen)
+		return -1; // printout is going on (it should never happen)
 	}
 
 	if(!uart_is_writable( UART_ID )){
-		return; // conflict with the previous printout (it should never happen)
+		return -1; // conflict with the previous printout (it should never happen)
 	}
-	if (UartOutputTail >= UART_BUFFER_SIZE){
-		return; // an attempt to SIGSEGV (it should never happen)
-	}
-
 	if (UartOutputHead > UART_BUFFER_SIZE){
-		return; // improper value
+		return -1; // improper value of UartOutputHead (it should never happen)
 	}
 
-	// write data to fifo buffer of UART
-	do{
-		uart_putc_raw( UART_ID, UartOutputBuffer[UartOutputTail] ); // uart_putc is not good due to its CRLF support
-		UartOutputTail++;
-	}while(UartOutputTail < UartOutputHead);
+	// write data to UART
+	uart_putc_raw( UART_ID, UartOutputBuffer[UartOutputTail] ); // uart_putc is not good due to its CRLF support
+	UartOutputTail++;
+
+	if (UartOutputTail < UartOutputHead){
+		uart_set_irq_enables( UART_ID, true, true );	// the next bytes will be sent in the interrupt handler
+	}
+
+	return 0;
 }
-
-
 
 void testSending(void){
 	//						    12345678901234567890123456789012
@@ -170,8 +182,6 @@ void testSending(void){
 	UartOutputHead = 32;
 	UartOutputTail = 0;
 
-	serialPortTransmitter();
+	transmitViaSerialPort();
 }
-
-
 
