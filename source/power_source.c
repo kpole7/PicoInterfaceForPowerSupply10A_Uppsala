@@ -75,6 +75,9 @@ int main() {
     	int8_t Temporary = getEventPushButtonChange();
     	if (Temporary != 0){
     		printf("It's me, %d\n", Temporary);
+    		if (Temporary > 0){
+    			testSending();
+    		}
     	}
 
     }

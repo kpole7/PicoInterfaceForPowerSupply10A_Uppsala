@@ -37,6 +37,9 @@ static char UartInputBuffer[UART_BUFFER_SIZE];
 static uint8_t UartInputHead, UartInputTail;
 static uint64_t WhenReceivedLastByte;
 
+static char UartOutputBuffer[UART_BUFFER_SIZE];
+static uint8_t UartOutputHead, UartOutputTail;
+
 //---------------------------------------------------------------------------------------------------
 // Function prototypes
 //---------------------------------------------------------------------------------------------------
@@ -81,7 +84,7 @@ void serialPortReceiver(void){
 				ReceivedBytes += UART_BUFFER_SIZE;
 			}
 			if (ReceivedBytes <= LONGEST_COMMAND_LENGTH){
-				// The number of received bytes is reasonable; they should be interpreted
+				// The number of received bytes is reasonable; they can be called 'new frame'
 
 #if 1
 				// for debugging purpose
@@ -133,9 +136,42 @@ static void serialPortInterruptHandler( void ){
 
 
 void serialPortTransmitter(void){
-//	if(uart_is_writable( UART_ID )){
-//		uart_putc_raw( UART_ID, temporary ); // uart_putc is not good due to its CRLF support
-//	}
+	if (0 == UartOutputHead){
+		return; // The buffer is empty
+	}
+	if (UartOutputTail != 0){
+		return; // printout is going on (it should never happen)
+	}
+
+	if(!uart_is_writable( UART_ID )){
+		return; // conflict with the previous printout (it should never happen)
+	}
+	if (UartOutputTail >= UART_BUFFER_SIZE){
+		return; // an attempt to SIGSEGV (it should never happen)
+	}
+
+	if (UartOutputHead > UART_BUFFER_SIZE){
+		return; // improper value
+	}
+
+	// write data to fifo buffer of UART
+	do{
+		uart_putc_raw( UART_ID, UartOutputBuffer[UartOutputTail] ); // uart_putc is not good due to its CRLF support
+		UartOutputTail++;
+	}while(UartOutputTail < UartOutputHead);
 }
+
+
+
+void testSending(void){
+	//						    12345678901234567890123456789012
+	sprintf( UartOutputBuffer, "Abcdefghijklmnopqrstuvwxyz12345" );
+	UartOutputBuffer[31] = '.';
+	UartOutputHead = 32;
+	UartOutputTail = 0;
+
+	serialPortTransmitter();
+}
+
 
 

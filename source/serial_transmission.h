@@ -15,4 +15,9 @@ void serialPortInitialization(void);
 void serialPortReceiver(void);
 
 
+void serialPortTransmitter(void);
+
+void testSending(void);
+
+
 #endif /* SOURCE_SERIAL_TRANSMISSION_H_ */
