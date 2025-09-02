@@ -31,6 +31,7 @@
 #define LONGEST_COMMAND_LENGTH				12			// ???
 #define REPLACEMENT_FOR_UNPRINTABLE			'~'
 
+#define UART_WARNING_INCOMING_WHILE_OUTGOING	0x01
 
 //---------------------------------------------------------------------------------------------------
 // Local variables
@@ -42,6 +43,7 @@ static volatile uint64_t WhenReceivedLastByte;
 
 static char UartOutputBuffer[UART_OUTPUT_BUFFER_SIZE];
 static volatile uint8_t UartOutputHead, UartOutputTail;
+static volatile uint8_t UartError;
 
 //---------------------------------------------------------------------------------------------------
 // Function prototypes
@@ -78,6 +80,7 @@ void serialPortInitialization(void){
 
     UartInputHead = 0;
 	UartInputTail = 0;
+	UartError = 0;
 	WhenReceivedLastByte = (uint64_t)0;
 }
 
@@ -105,11 +108,20 @@ void serialPortReceiver(void){
 						printf("%c", UartInputBuffer[UartInputTail] );
 					}
 					else{
-						printf("%c", REPLACEMENT_FOR_UNPRINTABLE );
+						if ('\r' == UartInputBuffer[UartInputTail]){
+							printf("%c", '\'' );
+						}
+						else if ('\n' == UartInputBuffer[UartInputTail]){
+							printf("%c", '\"' );
+						}
+						else{
+							printf("%c", REPLACEMENT_FOR_UNPRINTABLE );
+						}
 					}
 					increaseModulo( &UartInputTail, UART_INPUT_BUFFER_SIZE);
 				}
 				printf("]\n");
+
 #endif
 
 			}
@@ -122,15 +134,25 @@ static void serialPortInterruptHandler( void ){
 	changeDebugPin2(true);
 #endif
 	if (uart_is_readable(UART_ID)){
-	   	do{
-	   		UartInputBuffer[UartInputHead] = uart_getc(UART_ID);
-	   		increaseModulo( &UartInputHead, UART_INPUT_BUFFER_SIZE);
-	   		if (UartInputHead == UartInputTail){
-	   			// the buffer is overflowing; the oldest data is overwritten
-	   			increaseModulo( &UartInputTail, UART_INPUT_BUFFER_SIZE);
-	   		}
-	   		WhenReceivedLastByte = time_us_64(); // to check how long the silence lasts in the incoming transmission
-	   	}while(uart_is_readable(UART_ID));
+		char IncomingCharacter = uart_getc(UART_ID);
+		UartInputBuffer[UartInputHead] = IncomingCharacter;
+		increaseModulo( &UartInputHead, UART_INPUT_BUFFER_SIZE);
+		if (UartInputHead == UartInputTail){
+			// the buffer is overflowing; the oldest data is overwritten
+			increaseModulo( &UartInputTail, UART_INPUT_BUFFER_SIZE);
+		}
+		WhenReceivedLastByte = time_us_64(); // to check how long the silence lasts in the incoming transmission
+		// Check if there is any outgoing transmission
+		if (is_tx_irq_enabled(UART_ID) || !uart_is_writable( UART_ID ) || (UartOutputHead != UartOutputTail)){
+			// cancel outgoing buffered transmission
+   	   		uart_set_irq_enables( UART_ID, true, false );
+   	   		UartOutputHead = 0;
+   	   		UartOutputTail = 0;
+   	   		UartError |= UART_WARNING_INCOMING_WHILE_OUTGOING;
+		}
+		if (uart_is_writable( UART_ID )){
+			uart_putc_raw( UART_ID, IncomingCharacter ); // send echo
+		}
 	}
 	else{
 	   	if ((UartOutputHead < UART_OUTPUT_BUFFER_SIZE) &&
