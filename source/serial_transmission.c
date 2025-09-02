@@ -4,6 +4,7 @@
 
 #include "hardware/timer.h"
 #include "hardware/uart.h"
+#include "hardware/regs/uart.h"
 #include "hardware/irq.h"
 #include "hardware/gpio.h"
 
@@ -24,7 +25,8 @@
 #define UART_DATA_BITS		8
 #define UART_PARITY			UART_PARITY_NONE
 
-#define UART_BUFFER_SIZE					32
+#define UART_INPUT_BUFFER_SIZE				32
+#define UART_OUTPUT_BUFFER_SIZE				200
 #define SILENCE_DETECTION_IN_MICROSECONDS	6250		// 3 bytes for the given baud rate
 #define LONGEST_COMMAND_LENGTH				12			// ???
 #define REPLACEMENT_FOR_UNPRINTABLE			'~'
@@ -34,24 +36,32 @@
 // Local variables
 //---------------------------------------------------------------------------------------------------
 
-static char UartInputBuffer[UART_BUFFER_SIZE];
+static char UartInputBuffer[UART_INPUT_BUFFER_SIZE];
 static volatile uint8_t UartInputHead, UartInputTail;
 static volatile uint64_t WhenReceivedLastByte;
 
-static char UartOutputBuffer[UART_BUFFER_SIZE];
+static char UartOutputBuffer[UART_OUTPUT_BUFFER_SIZE];
 static volatile uint8_t UartOutputHead, UartOutputTail;
 
 //---------------------------------------------------------------------------------------------------
 // Function prototypes
 //---------------------------------------------------------------------------------------------------
 
+static bool is_tx_irq_enabled(uart_inst_t *uart);
+
 /// @brief This is an interrupt handler for receiving and transmitting via UART
 static void serialPortInterruptHandler( void );
 
+static inline void increaseModulo( volatile uint8_t * ArgumentPtr, const uint8_t Divisor );
 
 //---------------------------------------------------------------------------------------------------
 // Function definitions
 //---------------------------------------------------------------------------------------------------
+
+// Function that checks whether TX IRQ is enabled
+static bool is_tx_irq_enabled(uart_inst_t *uart) {
+	return (uart_get_hw(uart)->imsc & UART_UARTIMSC_TXIM_BITS) != 0;
+}
 
 void serialPortInitialization(void){
     uart_init(UART_ID, UART_BAUD_RATE);
@@ -82,7 +92,7 @@ void serialPortReceiver(void){
 			int16_t ReceivedBytes;
 			ReceivedBytes = UartInputHead - UartInputTail;
 			if (ReceivedBytes < 0){
-				ReceivedBytes += UART_BUFFER_SIZE;
+				ReceivedBytes += UART_INPUT_BUFFER_SIZE;
 			}
 			if (ReceivedBytes <= LONGEST_COMMAND_LENGTH){
 				// The number of received bytes is reasonable; they can be called 'new frame'
@@ -97,10 +107,7 @@ void serialPortReceiver(void){
 					else{
 						printf("%c", REPLACEMENT_FOR_UNPRINTABLE );
 					}
-					UartInputTail++;
-		   	   		if (UartInputTail >= UART_BUFFER_SIZE){
-		   	   			UartInputTail = 0;
-		   	   		}
+					increaseModulo( &UartInputTail, UART_INPUT_BUFFER_SIZE);
 				}
 				printf("]\n");
 #endif
@@ -111,31 +118,29 @@ void serialPortReceiver(void){
 }
 
 static void serialPortInterruptHandler( void ){
+#if 0
 	changeDebugPin2(true);
-
+#endif
 	if (uart_is_readable(UART_ID)){
 	   	do{
 	   		UartInputBuffer[UartInputHead] = uart_getc(UART_ID);
-	   		UartInputHead++;
-	   		if (UartInputHead >= UART_BUFFER_SIZE){
-	   			UartInputHead = 0;
-	   		}
+	   		increaseModulo( &UartInputHead, UART_INPUT_BUFFER_SIZE);
 	   		if (UartInputHead == UartInputTail){
-	   			UartInputTail++;
-	   	   		if (UartInputTail >= UART_BUFFER_SIZE){
-	   	   			UartInputTail = 0;
-	   	   		}
+	   			// the buffer is overflowing; the oldest data is overwritten
+	   			increaseModulo( &UartInputTail, UART_INPUT_BUFFER_SIZE);
 	   		}
-	   		WhenReceivedLastByte = time_us_64();
+	   		WhenReceivedLastByte = time_us_64(); // to check how long the silence lasts in the incoming transmission
 	   	}while(uart_is_readable(UART_ID));
 	}
 	else{
-	   	if (UartOutputHead <= UART_BUFFER_SIZE){ // protection just in case
-	   	   	if((UartOutputTail < UartOutputHead) && uart_is_writable( UART_ID )){
+	   	if ((UartOutputHead < UART_OUTPUT_BUFFER_SIZE) &&
+	   			(UartOutputTail < UART_OUTPUT_BUFFER_SIZE)) // protection just in case
+	   	{
+	   	   	if((UartOutputTail != UartOutputHead) && uart_is_writable( UART_ID )){
 	   	   		uart_putc_raw( UART_ID, UartOutputBuffer[UartOutputTail] ); // uart_putc is not good due to its CRLF support
-	   	   		UartOutputTail++;
+	   	   		increaseModulo( &UartOutputTail, UART_OUTPUT_BUFFER_SIZE);
 	   	   	}
-	   	   	if (UartOutputTail >= UartOutputHead){
+	   	   	if (UartOutputTail == UartOutputHead){
 	   	   		uart_set_irq_enables( UART_ID, true, false );	// there is nothing more to send so stop interrupts from the sender
 	   	   	}
 	   	}
@@ -145,43 +150,85 @@ static void serialPortInterruptHandler( void ){
 	   		}
 	   	}
 	}
-
+#if 0
 	changeDebugPin2(false);
+#endif
 }
 
-int8_t transmitViaSerialPort(void){
-	if (0 == UartOutputHead){
-		return -1; // The buffer is empty; it is nothing to do
+int8_t transmitViaSerialPort( const char* TextToBeSent ){
+	if (NULL == TextToBeSent){
+		return -1; // improper value of the argument
 	}
-	if (UartOutputTail != 0){
-		return -1; // printout is going on (it should never happen)
+	if (0 == TextToBeSent[0]){
+		return -1; // incorrect value pointed to by argument
 	}
 
-	if(!uart_is_writable( UART_ID )){
-		return -1; // conflict with the previous printout (it should never happen)
-	}
-	if (UartOutputHead > UART_BUFFER_SIZE){
+	if (UartOutputHead >= UART_OUTPUT_BUFFER_SIZE){
 		return -1; // improper value of UartOutputHead (it should never happen)
 	}
-
-	// write data to UART
-	uart_putc_raw( UART_ID, UartOutputBuffer[UartOutputTail] ); // uart_putc is not good due to its CRLF support
-	UartOutputTail++;
-
-	if (UartOutputTail < UartOutputHead){
-		uart_set_irq_enables( UART_ID, true, true );	// the next bytes will be sent in the interrupt handler
+	if (UartOutputTail >= UART_OUTPUT_BUFFER_SIZE){
+		return -1; // improper value of UartOutputTail (it should never happen)
 	}
 
+	if (UartOutputHead+1 == UartOutputTail){
+		return -1; // The output buffer is full
+	}
+	if ((UART_OUTPUT_BUFFER_SIZE-1 == UartOutputHead) && (0 == UartOutputTail)){
+		return -1; // The output buffer is full
+	}
+
+	if (is_tx_irq_enabled(UART_ID)){
+		// TX UART interrupt is active (the UART is transmitting now)
+	    irq_set_enabled(UART_IRQ, false);
+	    uint8_t Index = 0;
+	    uint8_t FutureHeadValue = UartOutputHead;
+	    increaseModulo( &FutureHeadValue, UART_OUTPUT_BUFFER_SIZE);
+	    while ((FutureHeadValue != UartOutputTail) && (0 != TextToBeSent[Index])){
+	    	UartOutputBuffer[UartOutputHead] = TextToBeSent[Index];
+	    	Index++;
+	    	UartOutputHead = FutureHeadValue;
+	    	increaseModulo( &FutureHeadValue, UART_OUTPUT_BUFFER_SIZE);
+	    }
+	    irq_set_enabled(UART_IRQ, true);
+	    if (FutureHeadValue == UartOutputTail){
+	    	return -1; // The output buffer is full
+	    }
+	}
+	else{
+		// TX UART interrupt is not active (the UART is not transmitting now)
+
+		uint8_t Index = 0;
+		uint8_t FutureHeadValue = UartOutputHead;
+		increaseModulo( &FutureHeadValue, UART_OUTPUT_BUFFER_SIZE);
+		while ((FutureHeadValue != UartOutputTail) && (0 != TextToBeSent[Index])){
+			UartOutputBuffer[UartOutputHead] = TextToBeSent[Index];
+			Index++;
+			UartOutputHead = FutureHeadValue;
+			increaseModulo( &FutureHeadValue, UART_OUTPUT_BUFFER_SIZE);
+		}
+		if (uart_is_writable( UART_ID )){ // the condition should always be met
+			// write data to UART
+			uart_putc_raw( UART_ID, UartOutputBuffer[UartOutputTail] ); // uart_putc is not good due to its CRLF support
+			increaseModulo( &UartOutputTail, UART_OUTPUT_BUFFER_SIZE);
+
+
+    		printf(">>> putc >>> %d  %d  %d\n", (int)UartOutputHead, (int)UartOutputTail, (int)Index );
+
+
+		}
+		uart_set_irq_enables( UART_ID, true, true );	// the next bytes will be sent in the interrupt handler
+
+		if (FutureHeadValue == UartOutputHead){
+			return -1; // The output buffer is full
+		}
+	}
 	return 0;
 }
 
-void testSending(void){
-	//						    12345678901234567890123456789012
-	sprintf( UartOutputBuffer, "Abcdefghijklmnopqrstuvwxyz12345" );
-	UartOutputBuffer[31] = '.';
-	UartOutputHead = 32;
-	UartOutputTail = 0;
-
-	transmitViaSerialPort();
+static inline void increaseModulo( volatile uint8_t * ArgumentPtr, const uint8_t Divisor ){
+	ArgumentPtr[0]++;
+	if (ArgumentPtr[0] >= Divisor){
+		ArgumentPtr[0] = 0;
+	}
 }
 

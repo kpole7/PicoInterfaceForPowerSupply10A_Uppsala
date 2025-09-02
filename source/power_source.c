@@ -77,7 +77,10 @@ int main() {
     		printf("It's me, %d\n", Temporary);
 
     		if (Temporary > 0){
-    			testSending();
+
+    			//						12345678901234567890123456789012
+    			transmitViaSerialPort( "Abcdefghijklmnopqrstuvwxyz12345." );
+
     		}
     		changeDebugPin1(true);
     		changeDebugPin1(false);
