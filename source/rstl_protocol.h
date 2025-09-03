@@ -46,6 +46,20 @@
 #define COMMAND_BUFFER_LENGTH	(LONGEST_COMMAND_LENGTH+10)
 
 //---------------------------------------------------------------------------------------------------
+// Constants
+//---------------------------------------------------------------------------------------------------
+
+enum CommandErrors{
+	COMMAND_GOOD				= 0,
+	COMMAND_UNKNOWN				= 1,
+	COMMAND_INCORRECT_FORMAT	= 2,
+	COMMAND_PC_INCORRECT_FORMAT	= 3,
+	COMMAND_PC_INCORRECT_VALUE	= 4,
+	COMMAND_Z_INCORRECT_FORMAT	= 5,
+	COMMAND_Z_INCORRECT_VALUE	= 6,
+};
+
+//---------------------------------------------------------------------------------------------------
 // Global variables
 //---------------------------------------------------------------------------------------------------
 
@@ -55,6 +69,11 @@ extern char NewCommand[COMMAND_BUFFER_LENGTH];
 // Function prototypes
 //---------------------------------------------------------------------------------------------------
 
+/// @brief This function initializes variables of this module
+void initializeRstlProtocol(void);
+
+/// @brief This function executes the command stored in NewCommand buffer
+/// @return value from enum CommandErrors
 uint8_t executeCommand(void);
 
 #endif // SOURCE_RSTL_PROTOCOL_H_

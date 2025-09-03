@@ -112,40 +112,12 @@ void serialPortReceiver(void){
 				NewCommand[Index] = 0;
 
 				executeCommand();
-
-#if 0
-				// for debugging purpose
-				printf("Received %d bytes [", ReceivedBytes );
-				while(UartInputHead != UartInputTail){
-					if ((UartInputBuffer[UartInputTail] >= ' ') && (UartInputBuffer[UartInputTail] <= (char)127)){
-						printf("%c", UartInputBuffer[UartInputTail] );
-					}
-					else{
-						if ('\r' == UartInputBuffer[UartInputTail]){
-							printf("%c", '\'' );
-						}
-						else if ('\n' == UartInputBuffer[UartInputTail]){
-							printf("%c", '\"' );
-						}
-						else{
-							printf("%c", REPLACEMENT_FOR_UNPRINTABLE );
-						}
-					}
-					increaseModulo( &UartInputTail, UART_INPUT_BUFFER_SIZE);
-				}
-				printf("]\n");
-
-#endif
-
 			}
 		}
 	}
 }
 
 static void serialPortInterruptHandler( void ){
-#if 0
-	changeDebugPin2(true);
-#endif
 	if (uart_is_readable(UART_ID)){
 		char IncomingCharacter = uart_getc(UART_ID);
 		UartInputBuffer[UartInputHead] = IncomingCharacter;
@@ -185,9 +157,6 @@ static void serialPortInterruptHandler( void ){
 	   		}
 	   	}
 	}
-#if 0
-	changeDebugPin2(false);
-#endif
 }
 
 int8_t transmitViaSerialPort( const char* TextToBeSent ){
