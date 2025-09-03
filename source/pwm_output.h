@@ -9,4 +9,4 @@
 void initializePwm(void);
 
 
-#endif /* SOURCE_PWM_OUTPUT_H_ */
+#endif // SOURCE_PWM_OUTPUT_H_

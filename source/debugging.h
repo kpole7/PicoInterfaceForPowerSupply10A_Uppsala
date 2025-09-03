@@ -22,4 +22,4 @@ void changeDebugPin1( bool NewValue );
 
 void changeDebugPin2( bool NewValue );
 
-#endif /* SOURCE_DEBUGGING_H_ */
+#endif // SOURCE_DEBUGGING_H_

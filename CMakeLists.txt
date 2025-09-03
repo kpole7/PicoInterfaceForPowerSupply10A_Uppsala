@@ -14,6 +14,11 @@ add_executable(power_source_10A_Uppsala
     ${CMAKE_CURRENT_LIST_DIR}/source/debugging.c
 )
 
+target_compile_definitions(power_source_10A_Uppsala PRIVATE
+    PICO_PRINTF_FLOAT_SUPPORT=1
+    PICO_SCANF_FLOAT_SUPPORT=1
+)
+
 # pull in common dependencies
 target_link_libraries(power_source_10A_Uppsala
 	pico_stdlib

@@ -9,6 +9,7 @@
 #include "hardware/gpio.h"
 
 #include "serial_transmission.h"
+#include "rstl_protocol.h"
 #include "debugging.h"
 
 #include <stdio.h>		// just for debugging
@@ -28,7 +29,6 @@
 #define UART_INPUT_BUFFER_SIZE				32
 #define UART_OUTPUT_BUFFER_SIZE				200
 #define SILENCE_DETECTION_IN_MICROSECONDS	6250		// 3 bytes for the given baud rate
-#define LONGEST_COMMAND_LENGTH				12			// ???
 #define REPLACEMENT_FOR_UNPRINTABLE			'~'
 
 #define UART_WARNING_INCOMING_WHILE_OUTGOING	0x01
@@ -98,9 +98,22 @@ void serialPortReceiver(void){
 				ReceivedBytes += UART_INPUT_BUFFER_SIZE;
 			}
 			if (ReceivedBytes <= LONGEST_COMMAND_LENGTH){
-				// The number of received bytes is reasonable; they can be called 'new frame'
+				// The number of received bytes is reasonable; they can be treated as new command
 
-#if 1
+				int16_t Index = 0;
+				while(UartInputHead != UartInputTail){
+					NewCommand[Index] = UartInputBuffer[UartInputTail];
+					Index++;
+					if (Index >= COMMAND_BUFFER_LENGTH-1){
+						break;
+					}
+					increaseModulo( &UartInputTail, UART_INPUT_BUFFER_SIZE);
+				}
+				NewCommand[Index] = 0;
+
+				executeCommand();
+
+#if 0
 				// for debugging purpose
 				printf("Received %d bytes [", ReceivedBytes );
 				while(UartInputHead != UartInputTail){
@@ -199,51 +212,35 @@ int8_t transmitViaSerialPort( const char* TextToBeSent ){
 		return -1; // The output buffer is full
 	}
 
-	if (is_tx_irq_enabled(UART_ID)){
+	if (is_tx_irq_enabled(UART_ID) || !uart_is_writable( UART_ID )){
 		// TX UART interrupt is active (the UART is transmitting now)
-	    irq_set_enabled(UART_IRQ, false);
-	    uint8_t Index = 0;
-	    uint8_t FutureHeadValue = UartOutputHead;
-	    increaseModulo( &FutureHeadValue, UART_OUTPUT_BUFFER_SIZE);
-	    while ((FutureHeadValue != UartOutputTail) && (0 != TextToBeSent[Index])){
-	    	UartOutputBuffer[UartOutputHead] = TextToBeSent[Index];
-	    	Index++;
-	    	UartOutputHead = FutureHeadValue;
-	    	increaseModulo( &FutureHeadValue, UART_OUTPUT_BUFFER_SIZE);
-	    }
-	    irq_set_enabled(UART_IRQ, true);
-	    if (FutureHeadValue == UartOutputTail){
-	    	return -1; // The output buffer is full
-	    }
+    	return -1;	// writing to the buffer during transmission should not occur
 	}
-	else{
-		// TX UART interrupt is not active (the UART is not transmitting now)
+	// TX UART interrupt is not active (the UART is not transmitting now)
 
-		uint8_t Index = 0;
-		uint8_t FutureHeadValue = UartOutputHead;
+	uint8_t Index = 0;
+	uint8_t FutureHeadValue = UartOutputHead;
+	increaseModulo( &FutureHeadValue, UART_OUTPUT_BUFFER_SIZE);
+	while ((FutureHeadValue != UartOutputTail) && (0 != TextToBeSent[Index])){
+		UartOutputBuffer[UartOutputHead] = TextToBeSent[Index];
+		Index++;
+		UartOutputHead = FutureHeadValue;
 		increaseModulo( &FutureHeadValue, UART_OUTPUT_BUFFER_SIZE);
-		while ((FutureHeadValue != UartOutputTail) && (0 != TextToBeSent[Index])){
-			UartOutputBuffer[UartOutputHead] = TextToBeSent[Index];
-			Index++;
-			UartOutputHead = FutureHeadValue;
-			increaseModulo( &FutureHeadValue, UART_OUTPUT_BUFFER_SIZE);
-		}
-		if (uart_is_writable( UART_ID )){ // the condition should always be met
-			// write data to UART
-			uart_putc_raw( UART_ID, UartOutputBuffer[UartOutputTail] ); // uart_putc is not good due to its CRLF support
-			increaseModulo( &UartOutputTail, UART_OUTPUT_BUFFER_SIZE);
-
-
-    		printf(">>> putc >>> %d  %d  %d\n", (int)UartOutputHead, (int)UartOutputTail, (int)Index );
-
-
-		}
-		uart_set_irq_enables( UART_ID, true, true );	// the next bytes will be sent in the interrupt handler
-
-		if (FutureHeadValue == UartOutputHead){
-			return -1; // The output buffer is full
-		}
 	}
+	if (uart_is_writable( UART_ID )){ // the condition should always be met
+		// write data to UART
+		uart_putc_raw( UART_ID, UartOutputBuffer[UartOutputTail] ); // uart_putc is not good due to its CRLF support
+		increaseModulo( &UartOutputTail, UART_OUTPUT_BUFFER_SIZE);
+#if 0
+		printf(">>> putc >>> %d  %d  %d\n", (int)UartOutputHead, (int)UartOutputTail, (int)Index );
+#endif
+	}
+	uart_set_irq_enables( UART_ID, true, true );	// the next bytes will be sent in the interrupt handler
+
+	if (FutureHeadValue == UartOutputHead){
+		return -1; // The output buffer is full
+	}
+
 	return 0;
 }
 

@@ -12,4 +12,4 @@ void initializeAdcMeasurements(void);
 void getVoltageSamples(void);
 
 
-#endif /* SOURCE_ADC_INPUTS_H_ */
+#endif // SOURCE_ADC_INPUTS_H_

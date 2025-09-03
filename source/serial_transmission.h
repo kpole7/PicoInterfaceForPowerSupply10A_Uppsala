@@ -4,12 +4,20 @@
 ///
 /// This module receives and sends data frames via a serial port
 
-
 #ifndef SOURCE_SERIAL_TRANSMISSION_H_
 #define SOURCE_SERIAL_TRANSMISSION_H_
 
 #include "pico/stdlib.h"
 
+//---------------------------------------------------------------------------------------------------
+// Directives
+//---------------------------------------------------------------------------------------------------
+
+#define LONGEST_COMMAND_LENGTH				12			// ???
+
+//---------------------------------------------------------------------------------------------------
+// Function prototypes
+//---------------------------------------------------------------------------------------------------
 
 /// @brief This function initializes hardware port (UART) and initializes state machines for serial communication
 void serialPortInitialization(void);
@@ -25,4 +33,4 @@ void serialPortReceiver(void);
 int8_t transmitViaSerialPort( const char* TextToBeSent );
 
 
-#endif /* SOURCE_SERIAL_TRANSMISSION_H_ */
+#endif // SOURCE_SERIAL_TRANSMISSION_H_
