@@ -4,6 +4,7 @@
 #include <string.h>
 #include "pico/stdlib.h"
 #include "rstl_protocol.h"
+#include "adc_inputs.h"
 
 //---------------------------------------------------------------------------------------------------
 // Directives
@@ -102,6 +103,18 @@ uint8_t executeCommand(void){
 		else{
 			// essential action
 			snprintf( ResponseBuffer, COMMAND_BUFFER_LENGTH-1, "%u\r\n>", (unsigned)(SelectedChannel+1) );
+			transmitViaSerialPort( ResponseBuffer );
+		}
+
+		printf( "command <%s>  %d  %u\n", NewCommand, ErrorCode, SelectedChannel+1 );
+	}
+	else if (strstr(NewCommand, "MC") == NewCommand){ // "Get selected channel number" command
+		if ((NewCommand[CommadLength-2] != '\r') || (NewCommand[CommadLength-1] != '\n')){
+			ErrorCode = COMMAND_MC_INCORRECT_FORMAT;
+		}
+		else{
+			// essential action
+			snprintf( ResponseBuffer, COMMAND_BUFFER_LENGTH-1, "%f\r\n>", getVoltage( SelectedChannel>0? 1 : 0 ) );
 			transmitViaSerialPort( ResponseBuffer );
 		}
 

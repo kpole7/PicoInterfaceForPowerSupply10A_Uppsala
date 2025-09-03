@@ -66,7 +66,7 @@ int main() {
     // Start periodic interrupt
     add_alarm_in_us(TIMER_INTERRUPT_INTERVAL_US, timerInterruptCallback, NULL, true);
 
-	printf("Hello guys\n");
+	printf("Hello guys %d\n", (int)sizeof(float));
 
     while (true) {
         // main loop

@@ -5,11 +5,14 @@
 #ifndef SOURCE_ADC_INPUTS_H_
 #define SOURCE_ADC_INPUTS_H_
 
+#include "pico/stdlib.h"
+
 /// @brief This function initializes peripherals for ADC measuring and the state machine for measurements
 void initializeAdcMeasurements(void);
 
 /// @brief This function collects measurements from ADC; it is to be called by timer interrupt
 void getVoltageSamples(void);
 
+float getVoltage( uint8_t AdcIndex );
 
 #endif // SOURCE_ADC_INPUTS_H_

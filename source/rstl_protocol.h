@@ -58,6 +58,7 @@ enum CommandErrors{
 	COMMAND_Z_INCORRECT_FORMAT	= 5,
 	COMMAND_Z_INCORRECT_VALUE	= 6,
 	COMMAND__Z_INCORRECT_FORMAT	= 7,
+	COMMAND_MC_INCORRECT_FORMAT	= 8,
 };
 
 //---------------------------------------------------------------------------------------------------

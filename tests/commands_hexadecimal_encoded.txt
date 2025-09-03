@@ -8,7 +8,7 @@ PC-1.23\r\n     50 43 2D 31 2E 32 33 0D 0A
 PC-12\r\n       50 43 2D 31 32 0D 0A
 Z3\r\n          5A 33 0D 0A
 ?Z\r\n          3F 5A 0D 0A
-
+MC\r\n          4D 43 0D 0A
 
 
 
