@@ -48,6 +48,7 @@ void initializeRstlProtocol(void){
 }
 
 uint8_t executeCommand(void){
+	char ResponseBuffer[COMMAND_BUFFER_LENGTH];
 	uint8_t ErrorCode = COMMAND_GOOD;
 	float FloatingPointValue;
 	unsigned UnsignedValue;
@@ -69,10 +70,12 @@ uint8_t executeCommand(void){
 			else{
 				// essential action
 
+
+				transmitViaSerialPort("\r\n>");
 			}
 		}
 
-		printf( "sscanf <%s>  %d  %f\n", NewCommand, ErrorCode, FloatingPointValue );
+		printf( "command <%s>  %d  %f\n", NewCommand, ErrorCode, FloatingPointValue );
 	}
 	else if (strstr(NewCommand, "Z") == NewCommand){ // "Select channel" command
 		int Result = sscanf( NewCommand, "Z%u\r\n", &UnsignedValue );
@@ -86,13 +89,27 @@ uint8_t executeCommand(void){
 			else{
 				// essential action
 				SelectedChannel = UnsignedValue-1;
+				transmitViaSerialPort("\r\n>");
 			}
 		}
 
-		printf( "sscanf <%s>  %d  %u\n", NewCommand, ErrorCode, UnsignedValue );
+		printf( "command <%s>  %d  %u\n", NewCommand, ErrorCode, UnsignedValue );
+	}
+	else if (strstr(NewCommand, "?Z") == NewCommand){ // "Get selected channel number" command
+		if ((NewCommand[CommadLength-2] != '\r') || (NewCommand[CommadLength-1] != '\n')){
+			ErrorCode = COMMAND__Z_INCORRECT_FORMAT;
+		}
+		else{
+			// essential action
+			snprintf( ResponseBuffer, COMMAND_BUFFER_LENGTH-1, "%u\r\n>", (unsigned)(SelectedChannel+1) );
+			transmitViaSerialPort( ResponseBuffer );
+		}
+
+		printf( "command <%s>  %d  %u\n", NewCommand, ErrorCode, SelectedChannel+1 );
 	}
 	else{
 		ErrorCode = COMMAND_UNKNOWN;
+		printf( "command <%s>  %d\n", NewCommand, ErrorCode );
 	}
 	return ErrorCode;
 }
