@@ -26,6 +26,7 @@
 
 #include "serial_transmission.h"
 #include "pwm_output.h"
+#include "pcf8574_outputs.h"
 #include "adc_inputs.h"
 #include "debugging.h"
 
@@ -59,6 +60,7 @@ int main() {
 
 	serialPortInitialization();
 	initializePwm();
+	initializePcf8574Outputs();
 	initializeAdcMeasurements();
 	initializeDebugDevices();
 	turnOnLedOnBoard();
@@ -82,8 +84,6 @@ int main() {
     			transmitViaSerialPort( "Abcdefghijklmnopqrstuvwxyz12345." );
 
     		}
-    		changeDebugPin1(true);
-    		changeDebugPin1(false);
     	}
     }
 }
@@ -100,6 +100,10 @@ void turnOnLedOnBoard(void){
 
 int64_t timerInterruptCallback(alarm_id_t id, void *user_data){
 	getVoltageSamples();
+
+	changeDebugPin1(true);
+	testPcf8574();
+	changeDebugPin1(false);
 
 	// timer restart
 	return TIMER_INTERRUPT_INTERVAL_US;
