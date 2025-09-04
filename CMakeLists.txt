@@ -7,10 +7,11 @@ pico_sdk_init()
 
 add_executable(power_source_10A_Uppsala
     ${CMAKE_CURRENT_LIST_DIR}/source/power_source.c
+    ${CMAKE_CURRENT_LIST_DIR}/source/rstl_protocol.c
     ${CMAKE_CURRENT_LIST_DIR}/source/serial_transmission.c
     ${CMAKE_CURRENT_LIST_DIR}/source/pwm_output.c
+    ${CMAKE_CURRENT_LIST_DIR}/source/pcf8574_outputs.c
     ${CMAKE_CURRENT_LIST_DIR}/source/adc_inputs.c
-    ${CMAKE_CURRENT_LIST_DIR}/source/rstl_protocol.c
     ${CMAKE_CURRENT_LIST_DIR}/source/debugging.c
 )
 
@@ -28,6 +29,7 @@ target_link_libraries(power_source_10A_Uppsala
 	hardware_irq
 	hardware_pwm
 	hardware_adc
+	hardware_i2c
 )
 
 # enable usb output, disable uart output

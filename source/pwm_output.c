@@ -4,6 +4,7 @@
 #include "hardware/pwm.h"
 #include "hardware/clocks.h"
 
+#include "pwm_output.h"
 
 /// @brief The port GPIO6 is used as a PWM output
 #define PWM_PIN 	6
