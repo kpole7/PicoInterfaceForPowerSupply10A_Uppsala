@@ -101,9 +101,7 @@ void turnOnLedOnBoard(void){
 int64_t timerInterruptCallback(alarm_id_t id, void *user_data){
 	getVoltageSamples();
 
-	changeDebugPin1(true);
 	testPcf8574();
-	changeDebugPin1(false);
 
 	// timer restart
 	return TIMER_INTERRUPT_INTERVAL_US;
