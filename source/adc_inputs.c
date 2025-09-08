@@ -62,5 +62,3 @@ float getVoltage( uint8_t AdcIndex ){
 	return NAN;
 }
 
-
-

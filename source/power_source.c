@@ -28,6 +28,7 @@
 #include "pwm_output.h"
 #include "adc_inputs.h"
 #include "i2c_outputs.h"
+#include "main_timer.h"
 #include "debugging.h"
 
 //---------------------------------------------------------------------------------------------------
@@ -37,9 +38,6 @@
 /// @brief This directive tells that the LED on pico PCB is connected to GPIO25 port
 #define PICO_ON_BOARD_LED_PIN		25
 
-/// @brief Period of interrupt: 64 Hz -> 1/64 s ≈ 15625 us
-#define TIMER_INTERRUPT_INTERVAL_US	15625
-
 
 //---------------------------------------------------------------------------------------------------
 // Function prototypes
@@ -47,9 +45,6 @@
 
 /// @brief This function initializes and turns on the LED on pico board.
 void turnOnLedOnBoard(void);
-
-/// @brief This is timer interrupt handler for slow cyclic events
-int64_t timerInterruptCallback(alarm_id_t id, void *user_data);
 
 //---------------------------------------------------------------------------------------------------
 // Main routine
@@ -64,9 +59,7 @@ int main() {
 	initializeAdcMeasurements();
 	initializeDebugDevices();
 	turnOnLedOnBoard();
-
-    // Start periodic interrupt
-    add_alarm_in_us(TIMER_INTERRUPT_INTERVAL_US, timerInterruptCallback, NULL, true);
+	startPeriodicInterrupt();
 
 	printf("Hello guys %d\n", (int)sizeof(float));
 
@@ -98,11 +91,3 @@ void turnOnLedOnBoard(void){
 	gpio_put(PICO_ON_BOARD_LED_PIN, true);
 }
 
-int64_t timerInterruptCallback(alarm_id_t id, void *user_data){
-	getVoltageSamples();
-
-	testPcf8574();
-
-	// timer restart
-	return TIMER_INTERRUPT_INTERVAL_US;
-}

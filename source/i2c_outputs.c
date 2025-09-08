@@ -72,11 +72,6 @@ void testPcf8574(void){
 	}
 }
 
-void writeToDac( uint16_t DacValue ){
-
-}
-
-
 static inline bool i2cWrite( uint8_t I2cAddress, uint8_t Value) {
 	int Result = i2c_write_timeout_us( I2C_PORT, I2cAddress, &Value, 1, false, 1000 ); // Timeout 1000us for PCF8574 working with I2C at 50kHz
 	if (1 == Result){

@@ -7,6 +7,7 @@ pico_sdk_init()
 
 add_executable(power_source_10A_Uppsala
     ${CMAKE_CURRENT_LIST_DIR}/source/power_source.c
+    ${CMAKE_CURRENT_LIST_DIR}/source/main_timer.c
     ${CMAKE_CURRENT_LIST_DIR}/source/rstl_protocol.c
     ${CMAKE_CURRENT_LIST_DIR}/source/uart_talks.c
     ${CMAKE_CURRENT_LIST_DIR}/source/psu_talks.c
