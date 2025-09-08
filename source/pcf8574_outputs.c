@@ -15,10 +15,10 @@
 #define SCL_PIN		5
 
 // The 1'st PCF8574 address (A0=A1=A2=high)
-#define PCF8574_ADDRESS_1	0x27
+#define PCF8574_ADDRESS_2	0x27
 
 // The 2'nd PCF8574 address (A0=high; A1=A2=low)
-#define PCF8574_ADDRESS_2	0x21
+#define PCF8574_ADDRESS_1	0x21
 
 //---------------------------------------------------------------------------------------------------
 // Local function prototypes
@@ -43,17 +43,32 @@ void testPcf8574(void){
 		Counter = 0;
 		pcf8574_write( PCF8574_ADDRESS_1, 0 );
 	}
+
+	if (1 == Counter){
+		pcf8574_write( PCF8574_ADDRESS_2, 0xFF );
+	}
+
+	changeDebugPin1(false);
+
 	if ((Counter == 16) || (Counter == 48)){
 		changeDebugPin2(true);
-		changeDebugPin1(false);
 		bool Result = pcf8574_write( PCF8574_ADDRESS_1, 0xFF );
 		if (Result){
 			changeDebugPin1(true);
 		}
 		changeDebugPin2(false);
 	}
+
+	if ((Counter == 17) || (Counter == 49)){
+		pcf8574_write( PCF8574_ADDRESS_2, 0 );
+	}
+
 	if (Counter == 22){
 		pcf8574_write( PCF8574_ADDRESS_1, 0 );
+	}
+
+	if (Counter == 23){
+		pcf8574_write( PCF8574_ADDRESS_2, 0xFF );
 	}
 }
 
