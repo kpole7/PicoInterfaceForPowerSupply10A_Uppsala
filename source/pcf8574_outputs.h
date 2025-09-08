@@ -11,10 +11,10 @@
 // Function prototypes
 //---------------------------------------------------------------------------------------------------
 
+/// @brief This function initializes I2C port used to communicate with PCF8574
 void initializePcf8574Outputs(void);
 
-//bool pcf8574_write( uint8_t I2cAddress, uint8_t Value);
-
+/// @brief This function is a debugging tool, normally not used
 void testPcf8574(void);
 
 #endif // SOURCE_PCF8574_OUTPUTS_H_

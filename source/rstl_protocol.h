@@ -15,7 +15,7 @@
 ///
 /// 3.1. Command **Place software revision**: `?M\r\n`
 ///
-/// 3.2. Exemplary response: `Rev. abcdefghijklmnopqrst\r\n\n>`
+/// 3.2. Exemplary response: `Rev. 111.222.333 2025-12-31 23:59:59\r\n\n>`
 ///
 /// 4.1. Command **Current DAC programming value**: `?C\r\n`
 ///

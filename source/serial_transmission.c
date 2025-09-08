@@ -13,6 +13,7 @@
 #include "debugging.h"
 
 #include <stdio.h>		// just for debugging
+#include <assert.h>
 
 //---------------------------------------------------------------------------------------------------
 // Directives
@@ -32,6 +33,8 @@
 #define REPLACEMENT_FOR_UNPRINTABLE			'~'
 
 #define UART_WARNING_INCOMING_WHILE_OUTGOING	0x01
+
+static_assert( LONGEST_RESPONSE_LENGTH < UART_OUTPUT_BUFFER_SIZE, "static_assert LONGEST_RESPONSE_LENGTH < UART_OUTPUT_BUFFER_SIZE" );
 
 //---------------------------------------------------------------------------------------------------
 // Local variables

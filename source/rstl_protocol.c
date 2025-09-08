@@ -33,9 +33,6 @@ uint16_t RequiredDacValue[NUMBER_OF_POWER_SUPPLIES];
 /// @brief The state of the power contactor: true=power on; false=power off
 bool MainContactorStateOn;
 
-
-
-
 //---------------------------------------------------------------------------------------------------
 // Function definitions
 //---------------------------------------------------------------------------------------------------
@@ -49,7 +46,7 @@ void initializeRstlProtocol(void){
 }
 
 uint8_t executeCommand(void){
-	char ResponseBuffer[COMMAND_BUFFER_LENGTH];
+	char ResponseBuffer[LONGEST_RESPONSE_LENGTH];
 	uint8_t ErrorCode = COMMAND_GOOD;
 	float FloatingPointValue;
 	unsigned UnsignedValue;
