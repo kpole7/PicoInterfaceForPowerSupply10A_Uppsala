@@ -1,9 +1,9 @@
-// pcf8574_outputs.c
+// i2c_outputs.c
 
 #include "pico/stdlib.h"
 #include "hardware/i2c.h"
 
-#include "pcf8574_outputs.h"
+#include "i2c_outputs.h"
 #include "debugging.h"
 
 //---------------------------------------------------------------------------------------------------
@@ -24,13 +24,13 @@
 // Local function prototypes
 //---------------------------------------------------------------------------------------------------
 
-static inline bool pcf8574_write( uint8_t I2cAddress, uint8_t Value);
+static inline bool i2cWrite( uint8_t I2cAddress, uint8_t Value);
 
 //---------------------------------------------------------------------------------------------------
 // Function definitions
 //---------------------------------------------------------------------------------------------------
 
-void initializePcf8574Outputs(void){
+void initializeI2cOutputs(void){
     i2c_init(I2C_PORT, 50 * 1000); // 50 kHz
     gpio_set_function(SDA_PIN, GPIO_FUNC_I2C);
     gpio_set_function(SCL_PIN, GPIO_FUNC_I2C);
@@ -41,18 +41,18 @@ void testPcf8574(void){
 	Counter++;
 	if (Counter >= 64){
 		Counter = 0;
-		pcf8574_write( PCF8574_ADDRESS_1, 0 );
+		i2cWrite( PCF8574_ADDRESS_1, 0 );
 	}
 
 	if (1 == Counter){
-		pcf8574_write( PCF8574_ADDRESS_2, 0xFF );
+		i2cWrite( PCF8574_ADDRESS_2, 0xFF );
 	}
 
 	changeDebugPin1(false);
 
 	if ((Counter == 16) || (Counter == 48)){
 		changeDebugPin2(true);
-		bool Result = pcf8574_write( PCF8574_ADDRESS_1, 0xFF );
+		bool Result = i2cWrite( PCF8574_ADDRESS_1, 0xFF );
 		if (Result){
 			changeDebugPin1(true);
 		}
@@ -60,19 +60,24 @@ void testPcf8574(void){
 	}
 
 	if ((Counter == 17) || (Counter == 49)){
-		pcf8574_write( PCF8574_ADDRESS_2, 0 );
+		i2cWrite( PCF8574_ADDRESS_2, 0 );
 	}
 
 	if (Counter == 22){
-		pcf8574_write( PCF8574_ADDRESS_1, 0 );
+		i2cWrite( PCF8574_ADDRESS_1, 0 );
 	}
 
 	if (Counter == 23){
-		pcf8574_write( PCF8574_ADDRESS_2, 0xFF );
+		i2cWrite( PCF8574_ADDRESS_2, 0xFF );
 	}
 }
 
-static inline bool pcf8574_write( uint8_t I2cAddress, uint8_t Value) {
+void writeToDac( uint16_t DacValue ){
+
+}
+
+
+static inline bool i2cWrite( uint8_t I2cAddress, uint8_t Value) {
 	int Result = i2c_write_timeout_us( I2C_PORT, I2cAddress, &Value, 1, false, 1000 ); // Timeout 1000us for PCF8574 working with I2C at 50kHz
 	if (1 == Result){
 		return true;

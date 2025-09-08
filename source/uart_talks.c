@@ -1,4 +1,4 @@
-// serial_transmission.c
+// uart_talks.c
 
 #include <stdbool.h>	// just for Eclipse
 
@@ -8,7 +8,7 @@
 #include "hardware/irq.h"
 #include "hardware/gpio.h"
 
-#include "serial_transmission.h"
+#include "uart_talks.h"
 #include "rstl_protocol.h"
 #include "debugging.h"
 

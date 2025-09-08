@@ -1,11 +1,11 @@
-// serial_transmission.h
-/// @file serial_transmission.h
+// uart_talks.h
+/// @file uart_talks
 /// @brief This module implements the lower layer of communication with the master unit via serial port
 ///
 /// This module receives and sends data frames via a serial port
 
-#ifndef SOURCE_SERIAL_TRANSMISSION_H_
-#define SOURCE_SERIAL_TRANSMISSION_H_
+#ifndef SOURCE_UART_TALKS_H_
+#define SOURCE_UART_TALKS_H_
 
 #include "pico/stdlib.h"
 
@@ -35,4 +35,4 @@ void serialPortReceiver(void);
 int8_t transmitViaSerialPort( const char* TextToBeSent );
 
 
-#endif // SOURCE_SERIAL_TRANSMISSION_H_
+#endif // SOURCE_UART_TALKS_H_

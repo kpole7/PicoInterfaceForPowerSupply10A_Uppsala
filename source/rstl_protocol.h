@@ -37,7 +37,7 @@
 #ifndef SOURCE_RSTL_PROTOCOL_H_
 #define SOURCE_RSTL_PROTOCOL_H_
 
-#include "serial_transmission.h"
+#include "uart_talks.h"
 
 //---------------------------------------------------------------------------------------------------
 // Directives

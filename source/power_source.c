@@ -14,7 +14,7 @@
 /// - Channel multiplexing (GPIO).
 /// - Analog voltage measurement (ADC0).
 /// #### 4.   Communication with the main unit via a serial port (UART0).
-/// The communication protocol is implemented in the `serial_transmission.c` module.
+/// The communication protocol is implemented in the `uart_talks.c` module.
 
 
 #include <stdbool.h>	// just for Eclipse
@@ -24,10 +24,10 @@
 #include "hardware/irq.h"
 #include "hardware/timer.h"
 
-#include "serial_transmission.h"
+#include "uart_talks.h"
 #include "pwm_output.h"
-#include "pcf8574_outputs.h"
 #include "adc_inputs.h"
+#include "i2c_outputs.h"
 #include "debugging.h"
 
 //---------------------------------------------------------------------------------------------------
@@ -60,7 +60,7 @@ int main() {
 
 	serialPortInitialization();
 	initializePwm();
-	initializePcf8574Outputs();
+	initializeI2cOutputs();
 	initializeAdcMeasurements();
 	initializeDebugDevices();
 	turnOnLedOnBoard();
