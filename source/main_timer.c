@@ -3,16 +3,17 @@
 #include "pico/stdlib.h"
 
 #include "adc_inputs.h"
-#include "i2c_outputs.h"
+#include "psu_talks.h"
 #include "main_timer.h"
 
 //---------------------------------------------------------------------------------------------------
 // Directives
 //---------------------------------------------------------------------------------------------------
 
-/// @brief Period of interrupt: 64 Hz -> 1/64 s ≈ 15625 us
-#define TIMER_INTERRUPT_INTERVAL_US	15625
+/// @brief Period of interrupt: 256 Hz -> 1/256 s ≈ 3900 us
+#define TIMER_INTERRUPT_INTERVAL_US	3900
 
+#define TIME_DIVIDER_ADC			4	// 256Hz / 4 = 64Hz
 //---------------------------------------------------------------------------------------------------
 // Function prototypes
 //---------------------------------------------------------------------------------------------------
@@ -29,9 +30,14 @@ void startPeriodicInterrupt(void){
 }
 
 int64_t timerInterruptCallback(alarm_id_t id, void *user_data){
-	getVoltageSamples();
+	static uint8_t TimeCounterAdc;
+	TimeCounterAdc++;
+	if (TimeCounterAdc >= TIME_DIVIDER_ADC){
+		TimeCounterAdc = 0;
+		getVoltageSamples();
+	}
 
-	testPcf8574();
+	psuTalksPeriodicIssues();
 
 	// timer restart
 	return TIMER_INTERRUPT_INTERVAL_US;

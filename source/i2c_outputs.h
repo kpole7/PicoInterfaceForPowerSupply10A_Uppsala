@@ -7,6 +7,8 @@
 #ifndef SOURCE_I2C_OUTPUTS_H_
 #define SOURCE_I2C_OUTPUTS_H_
 
+#include "pico/stdlib.h"
+
 //---------------------------------------------------------------------------------------------------
 // Function prototypes
 //---------------------------------------------------------------------------------------------------
@@ -14,7 +16,6 @@
 /// @brief This function initializes I2C port used to communicate with PCF8574
 void initializeI2cOutputs(void);
 
-/// @brief This function is a debugging tool, normally not used
-void testPcf8574(void);
+bool i2cWrite( uint8_t I2cAddress, uint8_t Value);
 
 #endif // SOURCE_I2C_OUTPUTS_H_

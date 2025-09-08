@@ -11,4 +11,8 @@
 
 void writeToDac( uint16_t DacValue );
 
+/// @brief This function is a debugging tool, normally not used
+void psuTalksPeriodicIssues(void);
+
+
 #endif // SOURCE_PSU_TALKS_H_
