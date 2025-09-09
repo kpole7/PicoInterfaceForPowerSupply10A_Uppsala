@@ -37,7 +37,7 @@ int64_t timerInterruptCallback(alarm_id_t id, void *user_data){
 		getVoltageSamples();
 	}
 
-	psuTalksPeriodicIssues();
+	psuTalksTimeTick();
 
 	// timer restart
 	return TIMER_INTERRUPT_INTERVAL_US;

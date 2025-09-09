@@ -15,6 +15,8 @@
 /// - Analog voltage measurement (ADC0).
 /// #### 4.   Communication with the main unit via a serial port (UART0).
 /// The communication protocol is implemented in the `uart_talks.c` module.
+///
+/// Abbreviations: PSU = power source unit;  FSM = finite state machine
 
 
 #include <stdbool.h>	// just for Eclipse

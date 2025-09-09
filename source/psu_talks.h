@@ -1,4 +1,9 @@
 // psu_talks.h
+/// @file psu_talks.h
+/// @brief This module provides a higher layer of communication with the power supply units
+///
+/// The module uses hardware ports like I2C and GPIOs to control PSUs.
+/// It executes commands from the rstl_protocol module.
 
 #ifndef SOURCE_PSU_TALKS_H_
 #define SOURCE_PSU_TALKS_H_
@@ -9,10 +14,14 @@
 // Function prototypes
 //---------------------------------------------------------------------------------------------------
 
+/// @brief This function is used to place an order for psu_talks module to program a given DAC
+///
+/// The function writes a setpoint value to the PSU that is pointed by the SelectedChannel variable.
+/// @param DacValue raw value (12-bit) to be stored in the DAC in the selected PSU
 void writeToDac( uint16_t DacValue );
 
-/// @brief This function is a debugging tool, normally not used
-void psuTalksPeriodicIssues(void);
+/// @brief This function is called periodically by the time interrupt handler
+void psuTalksTimeTick(void);
 
 
 #endif // SOURCE_PSU_TALKS_H_

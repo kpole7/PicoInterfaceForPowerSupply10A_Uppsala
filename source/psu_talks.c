@@ -15,6 +15,21 @@
 #define PCF8574_ADDRESS_1	0x21
 
 //---------------------------------------------------------------------------------------------------
+// Variables
+//---------------------------------------------------------------------------------------------------
+
+// This definition contains a list of states of a finite state machine responsible for programming the DAC of a given PSU
+// The state machine handles communication with two PCF8574 ICs and controls the notWR signal
+typedef enum {
+	STATE_IDLE,
+	STATE_SENDING_1ST_BYTE,
+	STATE_SENDING_2ND_BYTE,
+}StatesOfPsuFsm;
+
+
+
+
+//---------------------------------------------------------------------------------------------------
 // Function definitions
 //---------------------------------------------------------------------------------------------------
 
@@ -22,7 +37,7 @@ void writeToDac( uint16_t DacValue ){
 
 }
 
-void psuTalksPeriodicIssues(void){
+void psuTalksTimeTick(void){
 	static uint16_t Counter;
 	Counter++;
 	if (Counter >= 256){

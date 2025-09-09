@@ -65,7 +65,13 @@ enum CommandErrors{
 // Global variables
 //---------------------------------------------------------------------------------------------------
 
+/// @brief This buffer is used to pass data from UART
+/// This buffer is filled by the uart_talks module and is interpreted by the rstl_protocol module
 extern char NewCommand[COMMAND_BUFFER_LENGTH];
+
+/// @brief Currently selected (active) power supply unit
+/// All commands related to power supply settings apply to this device
+extern uint8_t SelectedChannel;
 
 //---------------------------------------------------------------------------------------------------
 // Function prototypes

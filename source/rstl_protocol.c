@@ -21,11 +21,13 @@
 // Global variables
 //---------------------------------------------------------------------------------------------------
 
-/// @brief This buffer is used to pass data from UART
 char NewCommand[COMMAND_BUFFER_LENGTH];
 
-/// @brief Currently selected (active) power supply unit
 uint8_t SelectedChannel;
+
+//---------------------------------------------------------------------------------------------------
+// Local variables
+//---------------------------------------------------------------------------------------------------
 
 /// @brief Setpoint value sent to DAC
 uint16_t RequiredDacValue[NUMBER_OF_POWER_SUPPLIES];
