@@ -1,5 +1,5 @@
 // uart_talks.h
-/// @file uart_talks
+/// @file uart_talks.h
 /// @brief This module implements the lower layer of communication with the master unit via serial port
 ///
 /// This module receives and sends data frames via a serial port
