@@ -34,12 +34,11 @@
 #include "debugging.h"
 
 //---------------------------------------------------------------------------------------------------
-// Directives
+// Macro directives
 //---------------------------------------------------------------------------------------------------
 
 /// @brief This directive tells that the LED on pico PCB is connected to GPIO25 port
-#define PICO_ON_BOARD_LED_PIN		25
-
+#define GPIO_FOR_PICO_ON_BOARD_LED	25
 
 //---------------------------------------------------------------------------------------------------
 // Function prototypes
@@ -88,8 +87,8 @@ int main() {
 //---------------------------------------------------------------------------------------------------
 
 void turnOnLedOnBoard(void){
-	gpio_init(PICO_ON_BOARD_LED_PIN);
-	gpio_set_dir(PICO_ON_BOARD_LED_PIN, GPIO_OUT);
-	gpio_put(PICO_ON_BOARD_LED_PIN, true);
+	gpio_init(GPIO_FOR_PICO_ON_BOARD_LED);
+	gpio_set_dir(GPIO_FOR_PICO_ON_BOARD_LED, GPIO_OUT);
+	gpio_put(GPIO_FOR_PICO_ON_BOARD_LED, true);
 }
 

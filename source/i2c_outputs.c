@@ -5,12 +5,12 @@
 #include "i2c_outputs.h"
 
 //---------------------------------------------------------------------------------------------------
-// Directives
+// Macro directives
 //---------------------------------------------------------------------------------------------------
 
-#define I2C_PORT	i2c0
-#define SDA_PIN		4
-#define SCL_PIN		5
+#define I2C_PORT		i2c0
+#define GPIO_FOR_SDA	8
+#define GPIO_FOR_SCL	9
 
 //---------------------------------------------------------------------------------------------------
 // Function definitions
@@ -18,8 +18,8 @@
 
 void initializeI2cOutputs(void){
     i2c_init(I2C_PORT, 50 * 1000); // 50 kHz
-    gpio_set_function(SDA_PIN, GPIO_FUNC_I2C);
-    gpio_set_function(SCL_PIN, GPIO_FUNC_I2C);
+    gpio_set_function(GPIO_FOR_SDA, GPIO_FUNC_I2C);
+    gpio_set_function(GPIO_FOR_SCL, GPIO_FUNC_I2C);
 }
 
 bool i2cWrite( uint8_t I2cAddress, uint8_t Value) {

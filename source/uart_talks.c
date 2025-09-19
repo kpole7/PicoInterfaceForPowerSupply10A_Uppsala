@@ -16,13 +16,13 @@
 #include <assert.h>
 
 //---------------------------------------------------------------------------------------------------
-// Directives
+// Macro directives
 //---------------------------------------------------------------------------------------------------
 
 #define UART_ID				uart0
 #define UART_BAUD_RATE		4800
-#define UART_TX_PIN 		0
-#define UART_RX_PIN 		1
+#define GPIO_FOR_UART_TX 	0
+#define GPIO_FOR_UART_RX 	1
 #define UART_IRQ			UART0_IRQ
 #define UART_DATA_BITS		8
 #define UART_PARITY			UART_PARITY_NONE
@@ -70,8 +70,8 @@ static bool is_tx_irq_enabled(uart_inst_t *uart) {
 
 void serialPortInitialization(void){
     uart_init(UART_ID, UART_BAUD_RATE);
-    gpio_set_function(UART_TX_PIN, UART_FUNCSEL_NUM(UART_ID, UART_TX_PIN));
-    gpio_set_function(UART_RX_PIN, UART_FUNCSEL_NUM(UART_ID, UART_RX_PIN));
+    gpio_set_function(GPIO_FOR_UART_TX, UART_FUNCSEL_NUM(UART_ID, GPIO_FOR_UART_TX));
+    gpio_set_function(GPIO_FOR_UART_RX, UART_FUNCSEL_NUM(UART_ID, GPIO_FOR_UART_RX));
     uart_set_baudrate( UART_ID, UART_BAUD_RATE );
     uart_set_hw_flow(UART_ID, false, false);
     uart_set_format( UART_ID, UART_DATA_BITS, 1, UART_PARITY );

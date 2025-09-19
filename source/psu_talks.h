@@ -18,7 +18,9 @@
 ///
 /// The function writes a setpoint value to the PSU that is pointed by the SelectedChannel variable.
 /// @param DacValue raw value (12-bit) to be stored in the DAC in the selected PSU
-void writeToDac( uint16_t DacValue );
+/// @return true on success
+/// @return false on failure
+bool writeToDac( uint16_t DacValue );
 
 /// @brief This function is called periodically by the time interrupt handler
 void psuTalksTimeTick(void);
