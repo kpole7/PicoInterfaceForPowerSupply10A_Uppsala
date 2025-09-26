@@ -10,16 +10,16 @@
 //---------------------------------------------------------------------------------------------------
 
 // The 1'st PCF8574 address (A0=A1=A2=high)
-#define PCF8574_ADDRESS_2	0x27
+#define PCF8574_ADDRESS_2		0x27
 
 // The 2'nd PCF8574 address (A0=high; A1=A2=low)
-#define PCF8574_ADDRESS_1	0x21
+#define PCF8574_ADDRESS_1		0x21
 
-#define DAC_NUMBER_OF_BITS	12
+#define DAC_NUMBER_OF_BITS		12
 
-#define PSU_ADDRESS_BITS	3
+#define PSU_ADDRESS_BITS		3
 
-#define GPIO_FOR_NOT_WR		10
+#define GPIO_FOR_NOT_WR_OUTPUT	10
 
 //---------------------------------------------------------------------------------------------------
 // Constants
@@ -62,8 +62,17 @@ uint16_t ConvertionPsuAddressToPcf8574[PSU_ADDRESS_BITS] = {
 // Variables
 //---------------------------------------------------------------------------------------------------
 
+static OrderCodes WorkingOrder;
 
+static float WorkingFloatingPointArgument;
 
+static unsigned WorkingUnsignedArgument;
+
+static uint8_t StateCode;
+
+static uint8_t I2cConsecutiveErrors;
+
+static uint16_t DataForTwoPcf8574;
 
 //---------------------------------------------------------------------------------------------------
 // Local function prototypes
@@ -96,14 +105,19 @@ static uint16_t prepareDataForTwoPcf8574( uint16_t DacRawValue, uint8_t AddressO
 }
 
 void initializePsuTalks(void){
-	gpio_init(GPIO_FOR_NOT_WR);
-	gpio_set_dir(GPIO_FOR_NOT_WR, GPIO_OUT);
-	gpio_put( GPIO_FOR_NOT_WR, true );	// the idle state is high
+	gpio_init(GPIO_FOR_NOT_WR_OUTPUT);
+	gpio_set_dir(GPIO_FOR_NOT_WR_OUTPUT, GPIO_OUT);
+	gpio_put( GPIO_FOR_NOT_WR_OUTPUT, true );	// the idle state is high
+
+	WorkingOrder = ORDER_NONE;
+	StateCode = 0;
+	I2cConsecutiveErrors = 0;
 }
 
+#if 0
 bool writeToDac( uint16_t DacValue ){
 	bool IsI2cSuccess;
-	uint16_t DataForTwoPcf8574 = prepareDataForTwoPcf8574( DacValue, SelectedChannel );
+	DataForTwoPcf8574 = prepareDataForTwoPcf8574( DacValue, SelectedChannel );
 
 	IsI2cSuccess = i2cWrite( PCF8574_ADDRESS_2, (uint8_t)DataForTwoPcf8574 );
 
@@ -115,19 +129,75 @@ bool writeToDac( uint16_t DacValue ){
 	if (IsI2cSuccess){
 		sleep_us( 50 );
 		// writing signal = /WR
-		gpio_put( GPIO_FOR_NOT_WR, false );
+		gpio_put( GPIO_FOR_NOT_WR_OUTPUT, false );
 		sleep_us( 50 );
-		gpio_put( GPIO_FOR_NOT_WR, true );
+		gpio_put( GPIO_FOR_NOT_WR_OUTPUT, true );
 	}
 	return IsI2cSuccess;
 }
+#endif
 
 void psuTalksTimeTick(void){
+	bool IsI2cSuccess;
+	if (ORDER_NONE == WorkingOrder){
+		if ((ORDER_PCX == OrderCode) || (ORDER_PC == OrderCode)){
+			// take a new order
+			StateCode = 0;
+			WorkingOrder = OrderCode;
+		}
+	}
+	if (ORDER_PCX == WorkingOrder){
+		if (0 == StateCode){
+			DataForTwoPcf8574 = prepareDataForTwoPcf8574( WorkingUnsignedArgument, SelectedChannel );
+			IsI2cSuccess = i2cWrite( PCF8574_ADDRESS_2, (uint8_t)DataForTwoPcf8574 );
+			if (IsI2cSuccess){
+				I2cConsecutiveErrors = 0;
+				StateCode++;
+			}
+			else{
+				if (I2cConsecutiveErrors < 255){
+					I2cConsecutiveErrors++;
+				}
+			}
+		}
+		else if (1 == StateCode){
+			IsI2cSuccess = i2cWrite( PCF8574_ADDRESS_1, (uint8_t)(DataForTwoPcf8574 >> 8) );
+			if (IsI2cSuccess){
+				I2cConsecutiveErrors = 0;
+				StateCode++;
+			}
+			else{
+				if (I2cConsecutiveErrors < 255){
+					I2cConsecutiveErrors++;
+				}
+			}
+		}
+		else{
+			// writing signal = /WR
+			gpio_put( GPIO_FOR_NOT_WR_OUTPUT, false );
+			sleep_us( 100 );
+			gpio_put( GPIO_FOR_NOT_WR_OUTPUT, true );
 
+			StateCode = 0;
+			WorkingOrder = ORDER_NONE;
+			OrderCode = ORDER_COMPLETED;
+		}
+		return;
+	}
+	if (ORDER_PC == WorkingOrder){
 
+	}
 
 #if 0
 	static uint16_t Counter;
+
+	if (Counter % 2 == 0){
+		changeDebugPin1(false);
+	}
+	else{
+		changeDebugPin1(true);
+	}
+
 	Counter++;
 	if (Counter >= 256){
 		Counter = 0;
@@ -138,38 +208,24 @@ void psuTalksTimeTick(void){
 		i2cWrite( PCF8574_ADDRESS_2, 0xFF );
 	}
 
-	changeDebugPin1(false);
-
 	if ((Counter == 64) || (Counter == 192)){
 		changeDebugPin2(true);
-		bool Result = i2cWrite( PCF8574_ADDRESS_1, 0xFF );
-		if (Result){
-			changeDebugPin1(true);
-		}
+		i2cWrite( PCF8574_ADDRESS_1, 0xFF );
 		changeDebugPin2(false);
 	}
 
 	if ((Counter == 65) || (Counter == 193)){
-		bool Result = i2cWrite( PCF8574_ADDRESS_2, 0 );
-		if (Result){
-			changeDebugPin1(true);
-		}
+		i2cWrite( PCF8574_ADDRESS_2, 0 );
 		changeDebugPin2(false);
 	}
 
 	if (Counter == 88){
-		bool Result = i2cWrite( PCF8574_ADDRESS_1, 0 );
-		if (Result){
-			changeDebugPin1(true);
-		}
+		i2cWrite( PCF8574_ADDRESS_1, 0 );
 		changeDebugPin2(false);
 	}
 
 	if (Counter == 89){
-		bool Result = i2cWrite( PCF8574_ADDRESS_2, 0xFF );
-		if (Result){
-			changeDebugPin1(true);
-		}
+		i2cWrite( PCF8574_ADDRESS_2, 0xFF );
 		changeDebugPin2(false);
 	}
 #endif

@@ -17,6 +17,8 @@
 #define INITIAL_DAC_VALUE				0x800
 #define INITIAL_MAIN_CONTACTOR_STATE	false
 
+#define GPIO_FOR_SIG2_INPUT				11
+
 //---------------------------------------------------------------------------------------------------
 // Global variables
 //---------------------------------------------------------------------------------------------------
@@ -51,6 +53,7 @@ void initializeRstlProtocol(void){
 		RequiredDacValue[J] = INITIAL_DAC_VALUE;
 	}
 	MainContactorStateOn = INITIAL_MAIN_CONTACTOR_STATE;
+	OrderCode = ORDER_NONE;
 }
 
 CommandErrors executeCommand(void){
@@ -69,7 +72,7 @@ CommandErrors executeCommand(void){
 		}
 		else{
 			// essential action
-
+			OrderCode = ORDER_PCX;
 
 			transmitViaSerialPort("\r\n>");
 		}

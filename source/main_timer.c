@@ -10,10 +10,19 @@
 // Macro directives
 //---------------------------------------------------------------------------------------------------
 
+#if 0
 /// @brief Period of interrupt: 256 Hz -> 1/256 s ≈ 3900 us
 #define TIMER_INTERRUPT_INTERVAL_US	3900
 
 #define TIME_DIVIDER_ADC			4	// 256Hz / 4 = 64Hz
+#endif
+
+
+#define TIMER_INTERRUPT_INTERVAL_US	390
+
+#define TIME_DIVIDER_ADC			40
+
+
 //---------------------------------------------------------------------------------------------------
 // Function prototypes
 //---------------------------------------------------------------------------------------------------

@@ -9,6 +9,7 @@
 #define SOURCE_PSU_TALKS_H_
 
 #include "pico/stdlib.h"
+#include "rstl_protocol.h"
 
 //---------------------------------------------------------------------------------------------------
 // Function prototypes
@@ -27,6 +28,8 @@ bool writeToDac( uint16_t DacValue );
 
 /// @brief This function is called periodically by the time interrupt handler
 void psuTalksTimeTick(void);
+
+
 
 
 #endif // SOURCE_PSU_TALKS_H_

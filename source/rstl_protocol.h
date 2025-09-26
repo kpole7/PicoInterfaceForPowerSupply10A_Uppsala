@@ -51,11 +51,9 @@
 
 typedef enum OrderCodesEnum{
 	ORDER_NONE		= 0,
-	ORDER_PCX		= 1,
-	ORDER_PC		= 2,
-	ORDER_Z			= 3,
-	ORDER_MC		= 4,
-	ORDER_MY		= 5,
+	ORDER_COMPLETED	= 1,
+	ORDER_PCX		= 2,
+	ORDER_PC		= 3,
 } OrderCodes;
 
 typedef enum CommandErrorsEnum{
@@ -69,7 +67,7 @@ typedef enum CommandErrorsEnum{
 	COMMAND_Z_INCORRECT_VALUE	= 7,
 	COMMAND__Z_INCORRECT_FORMAT	= 8,
 	COMMAND_MC_INCORRECT_FORMAT	= 9,
-	COMMAND_MY_INCORRECT_FORMAT	= 9,
+	COMMAND_MY_INCORRECT_FORMAT	= 10,
 } CommandErrors;
 
 //---------------------------------------------------------------------------------------------------
