@@ -10,5 +10,8 @@ Z3\r\n          5A 33 0D 0A
 ?Z\r\n          3F 5A 0D 0A
 MC\r\n          4D 43 0D 0A
 
+PCX5ABC\r\n     50 43 58 35 41 42 43 0D 0A
+
+
 
 

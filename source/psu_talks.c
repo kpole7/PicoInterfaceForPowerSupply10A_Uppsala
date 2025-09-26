@@ -19,6 +19,8 @@
 
 #define PSU_ADDRESS_BITS	3
 
+#define GPIO_FOR_NOT_WR		10
+
 //---------------------------------------------------------------------------------------------------
 // Constants
 //---------------------------------------------------------------------------------------------------
@@ -93,31 +95,38 @@ static uint16_t prepareDataForTwoPcf8574( uint16_t DacRawValue, uint8_t AddressO
 	return Result;
 }
 
+void initializePsuTalks(void){
+	gpio_init(GPIO_FOR_NOT_WR);
+	gpio_set_dir(GPIO_FOR_NOT_WR, GPIO_OUT);
+	gpio_put( GPIO_FOR_NOT_WR, true );	// the idle state is high
+}
+
 bool writeToDac( uint16_t DacValue ){
-	bool I2cSuccess;
+	bool IsI2cSuccess;
 	uint16_t DataForTwoPcf8574 = prepareDataForTwoPcf8574( DacValue, SelectedChannel );
 
-	I2cSuccess = i2cWrite( PCF8574_ADDRESS_2, (uint8_t)DataForTwoPcf8574 );
+	IsI2cSuccess = i2cWrite( PCF8574_ADDRESS_2, (uint8_t)DataForTwoPcf8574 );
 
-	if (I2cSuccess){
+	if (IsI2cSuccess){
 		sleep_us( 500 );
-		I2cSuccess = i2cWrite( PCF8574_ADDRESS_1, (uint8_t)(DataForTwoPcf8574 >> 8) );
+		IsI2cSuccess = i2cWrite( PCF8574_ADDRESS_1, (uint8_t)(DataForTwoPcf8574 >> 8) );
 	}
 
-	if (I2cSuccess){
+	if (IsI2cSuccess){
 		sleep_us( 50 );
-
 		// writing signal = /WR
-
+		gpio_put( GPIO_FOR_NOT_WR, false );
 		sleep_us( 50 );
-
-
+		gpio_put( GPIO_FOR_NOT_WR, true );
 	}
-
-	return I2cSuccess;
+	return IsI2cSuccess;
 }
 
 void psuTalksTimeTick(void){
+
+
+
+#if 0
 	static uint16_t Counter;
 	Counter++;
 	if (Counter >= 256){
@@ -163,5 +172,6 @@ void psuTalksTimeTick(void){
 		}
 		changeDebugPin2(false);
 	}
+#endif
 }
 

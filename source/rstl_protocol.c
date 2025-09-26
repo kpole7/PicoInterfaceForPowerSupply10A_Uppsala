@@ -58,7 +58,20 @@ uint8_t executeCommand(void){
 		ErrorCode = COMMAND_INCORRECT_FORMAT;
 	}
 
-	if (strstr(NewCommand, "PC") == NewCommand){ // "Program current" command
+	if (strstr(NewCommand, "PCX") == NewCommand){ // "Program current hexadecimal" command
+		int Result = sscanf( NewCommand, "PCX%X\r\n", &UnsignedValue );
+		if ((Result != 1) || (NewCommand[CommadLength-2] != '\r') || (NewCommand[CommadLength-1] != '\n')){
+			ErrorCode = COMMAND_PC_INCORRECT_FORMAT;
+		}
+		else{
+
+
+			transmitViaSerialPort("\r\n>");
+		}
+
+		printf( "command <%s>  %d  %04X\n", NewCommand, ErrorCode, UnsignedValue );
+	}
+	else if (strstr(NewCommand, "PC") == NewCommand){ // "Program current" command
 		int Result = sscanf( NewCommand, "PC%f\r\n", &FloatingPointValue );
 		if ((Result != 1) || (NewCommand[CommadLength-2] != '\r') || (NewCommand[CommadLength-1] != '\n')){
 			ErrorCode = COMMAND_PC_INCORRECT_FORMAT;

@@ -14,6 +14,9 @@
 // Function prototypes
 //---------------------------------------------------------------------------------------------------
 
+/// @brief This function initializes "not WR" output port used to communicate with PSUs
+void initializePsuTalks(void);
+
 /// @brief This function is used to place an order for psu_talks module to program a given DAC
 ///
 /// The function writes a setpoint value to the PSU that is pointed by the SelectedChannel variable.

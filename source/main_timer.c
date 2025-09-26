@@ -30,6 +30,7 @@ void startPeriodicInterrupt(void){
 }
 
 int64_t timerInterruptCallback(alarm_id_t id, void *user_data){
+	// Analog-to-digital converter operation
 	static uint8_t TimeCounterAdc;
 	TimeCounterAdc++;
 	if (TimeCounterAdc >= TIME_DIVIDER_ADC){
