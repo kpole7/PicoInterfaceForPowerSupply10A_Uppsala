@@ -49,17 +49,28 @@
 // Constants
 //---------------------------------------------------------------------------------------------------
 
-enum CommandErrors{
+typedef enum OrderCodesEnum{
+	ORDER_NONE		= 0,
+	ORDER_PCX		= 1,
+	ORDER_PC		= 2,
+	ORDER_Z			= 3,
+	ORDER_MC		= 4,
+	ORDER_MY		= 5,
+} OrderCodes;
+
+typedef enum CommandErrorsEnum{
 	COMMAND_GOOD				= 0,
 	COMMAND_UNKNOWN				= 1,
 	COMMAND_INCORRECT_FORMAT	= 2,
-	COMMAND_PC_INCORRECT_FORMAT	= 3,
-	COMMAND_PC_INCORRECT_VALUE	= 4,
-	COMMAND_Z_INCORRECT_FORMAT	= 5,
-	COMMAND_Z_INCORRECT_VALUE	= 6,
-	COMMAND__Z_INCORRECT_FORMAT	= 7,
-	COMMAND_MC_INCORRECT_FORMAT	= 8,
-};
+	COMMAND_PCX_INCORRECT_FORMAT= 3,
+	COMMAND_PC_INCORRECT_FORMAT	= 4,
+	COMMAND_PC_INCORRECT_VALUE	= 5,
+	COMMAND_Z_INCORRECT_FORMAT	= 6,
+	COMMAND_Z_INCORRECT_VALUE	= 7,
+	COMMAND__Z_INCORRECT_FORMAT	= 8,
+	COMMAND_MC_INCORRECT_FORMAT	= 9,
+	COMMAND_MY_INCORRECT_FORMAT	= 9,
+} CommandErrors;
 
 //---------------------------------------------------------------------------------------------------
 // Global variables
@@ -73,6 +84,12 @@ extern char NewCommand[COMMAND_BUFFER_LENGTH];
 /// All commands related to power supply settings apply to this device
 extern uint8_t SelectedChannel;
 
+extern OrderCodes OrderCode;
+
+extern float CommandFloatingPointArgument;
+
+extern unsigned CommandUnsignedArgument;
+
 //---------------------------------------------------------------------------------------------------
 // Function prototypes
 //---------------------------------------------------------------------------------------------------
@@ -82,6 +99,6 @@ void initializeRstlProtocol(void);
 
 /// @brief This function executes the command stored in NewCommand buffer
 /// @return value from enum CommandErrors
-uint8_t executeCommand(void);
+CommandErrors executeCommand(void);
 
 #endif // SOURCE_RSTL_PROTOCOL_H_

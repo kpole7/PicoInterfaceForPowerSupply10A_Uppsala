@@ -25,6 +25,12 @@ char NewCommand[COMMAND_BUFFER_LENGTH];
 
 uint8_t SelectedChannel;
 
+OrderCodes OrderCode;
+
+float CommandFloatingPointArgument;
+
+unsigned CommandUnsignedArgument;
+
 //---------------------------------------------------------------------------------------------------
 // Local variables
 //---------------------------------------------------------------------------------------------------
@@ -47,11 +53,9 @@ void initializeRstlProtocol(void){
 	MainContactorStateOn = INITIAL_MAIN_CONTACTOR_STATE;
 }
 
-uint8_t executeCommand(void){
+CommandErrors executeCommand(void){
 	char ResponseBuffer[LONGEST_RESPONSE_LENGTH];
-	uint8_t ErrorCode = COMMAND_GOOD;
-	float FloatingPointValue;
-	unsigned UnsignedValue;
+	CommandErrors ErrorCode = COMMAND_GOOD;
 	int CommadLength = strlen( NewCommand );
 
 	if (CommadLength < 3){
@@ -59,25 +63,26 @@ uint8_t executeCommand(void){
 	}
 
 	if (strstr(NewCommand, "PCX") == NewCommand){ // "Program current hexadecimal" command
-		int Result = sscanf( NewCommand, "PCX%X\r\n", &UnsignedValue );
+		int Result = sscanf( NewCommand, "PCX%X\r\n", &CommandUnsignedArgument );
 		if ((Result != 1) || (NewCommand[CommadLength-2] != '\r') || (NewCommand[CommadLength-1] != '\n')){
-			ErrorCode = COMMAND_PC_INCORRECT_FORMAT;
+			ErrorCode = COMMAND_PCX_INCORRECT_FORMAT;
 		}
 		else{
+			// essential action
 
 
 			transmitViaSerialPort("\r\n>");
 		}
 
-		printf( "command <%s>  %d  %04X\n", NewCommand, ErrorCode, UnsignedValue );
+		printf( "command <%s>  %d  %04X\n", NewCommand, ErrorCode, CommandUnsignedArgument );
 	}
 	else if (strstr(NewCommand, "PC") == NewCommand){ // "Program current" command
-		int Result = sscanf( NewCommand, "PC%f\r\n", &FloatingPointValue );
+		int Result = sscanf( NewCommand, "PC%f\r\n", &CommandFloatingPointArgument );
 		if ((Result != 1) || (NewCommand[CommadLength-2] != '\r') || (NewCommand[CommadLength-1] != '\n')){
 			ErrorCode = COMMAND_PC_INCORRECT_FORMAT;
 		}
 		else{
-			if ((FloatingPointValue < -10.0) || (FloatingPointValue > 10.0)){
+			if ((CommandFloatingPointArgument < -10.0) || (CommandFloatingPointArgument > 10.0)){
 				ErrorCode = COMMAND_PC_INCORRECT_VALUE;
 			}
 			else{
@@ -88,25 +93,25 @@ uint8_t executeCommand(void){
 			}
 		}
 
-		printf( "command <%s>  %d  %f\n", NewCommand, ErrorCode, FloatingPointValue );
+		printf( "command <%s>  %d  %f\n", NewCommand, ErrorCode, CommandFloatingPointArgument );
 	}
 	else if (strstr(NewCommand, "Z") == NewCommand){ // "Select channel" command
-		int Result = sscanf( NewCommand, "Z%u\r\n", &UnsignedValue );
+		int Result = sscanf( NewCommand, "Z%u\r\n", &CommandUnsignedArgument );
 		if ((Result != 1) || (NewCommand[CommadLength-2] != '\r') || (NewCommand[CommadLength-1] != '\n')){
 			ErrorCode = COMMAND_Z_INCORRECT_FORMAT;
 		}
 		else{
-			if ((0 == UnsignedValue) || (UnsignedValue > NUMBER_OF_POWER_SUPPLIES)){
+			if ((0 == CommandUnsignedArgument) || (CommandUnsignedArgument > NUMBER_OF_POWER_SUPPLIES)){
 				ErrorCode = COMMAND_Z_INCORRECT_VALUE;
 			}
 			else{
 				// essential action
-				SelectedChannel = UnsignedValue-1;
+				SelectedChannel = CommandUnsignedArgument-1;
 				transmitViaSerialPort("\r\n>");
 			}
 		}
 
-		printf( "command <%s>  %d  %u\n", NewCommand, ErrorCode, UnsignedValue );
+		printf( "command <%s>  %d  %u\n", NewCommand, ErrorCode, CommandUnsignedArgument );
 	}
 	else if (strstr(NewCommand, "?Z") == NewCommand){ // "Get selected channel number" command
 		if ((NewCommand[CommadLength-2] != '\r') || (NewCommand[CommadLength-1] != '\n')){
@@ -128,6 +133,19 @@ uint8_t executeCommand(void){
 			// essential action
 			snprintf( ResponseBuffer, COMMAND_BUFFER_LENGTH-1, "%f\r\n>", getVoltage( SelectedChannel>0? 1 : 0 ) );
 			transmitViaSerialPort( ResponseBuffer );
+		}
+
+		printf( "command <%s>  %d  %u\n", NewCommand, ErrorCode, SelectedChannel+1 );
+	}
+	else if (strstr(NewCommand, "MY") == NewCommand){ // "Get Sig2 value" command
+		if ((NewCommand[CommadLength-2] != '\r') || (NewCommand[CommadLength-1] != '\n')){
+			ErrorCode = COMMAND_MY_INCORRECT_FORMAT;
+		}
+		else{
+			// essential action
+
+
+			transmitViaSerialPort("\r\n>");
 		}
 
 		printf( "command <%s>  %d  %u\n", NewCommand, ErrorCode, SelectedChannel+1 );
