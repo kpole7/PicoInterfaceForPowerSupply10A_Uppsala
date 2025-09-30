@@ -28,6 +28,7 @@
 
 #include "uart_talks.h"
 #include "pwm_output.h"
+#include "psu_talks.h"
 #include "adc_inputs.h"
 #include "i2c_outputs.h"
 #include "main_timer.h"
@@ -57,6 +58,7 @@ int main() {
 	serialPortInitialization();
 	initializePwm();
 	initializeI2cOutputs();
+	initializePsuTalks();
 	initializeAdcMeasurements();
 	initializeDebugDevices();
 	turnOnLedOnBoard();

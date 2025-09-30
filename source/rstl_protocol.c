@@ -4,6 +4,7 @@
 #include <string.h>
 #include "pico/stdlib.h"
 #include "rstl_protocol.h"
+#include "psu_talks.h"
 #include "adc_inputs.h"
 
 //---------------------------------------------------------------------------------------------------
@@ -31,7 +32,7 @@ OrderCodes OrderCode;
 
 float CommandFloatingPointArgument;
 
-unsigned CommandUnsignedArgument;
+uint16_t CommandUnsignedArgument;
 
 //---------------------------------------------------------------------------------------------------
 // Local variables
@@ -66,18 +67,18 @@ CommandErrors executeCommand(void){
 	}
 
 	if (strstr(NewCommand, "PCX") == NewCommand){ // "Program current hexadecimal" command
-		int Result = sscanf( NewCommand, "PCX%X\r\n", &CommandUnsignedArgument );
+		unsigned DacValue;
+		int Result = sscanf( NewCommand, "PCX%X\r\n", &DacValue );
 		if ((Result != 1) || (NewCommand[CommadLength-2] != '\r') || (NewCommand[CommadLength-1] != '\n')){
 			ErrorCode = COMMAND_PCX_INCORRECT_FORMAT;
 		}
 		else{
 			// essential action
+			CommandUnsignedArgument = prepareDataForTwoPcf8574( DacValue, SelectedChannel );
 			OrderCode = ORDER_PCX;
-
 			transmitViaSerialPort("\r\n>");
 		}
-
-		printf( "command <%s>  %d  %04X\n", NewCommand, ErrorCode, CommandUnsignedArgument );
+		printf( "command <%s> E=%d ch=%d %04X > %04X\n", NewCommand, ErrorCode, SelectedChannel, DacValue, CommandUnsignedArgument );
 	}
 	else if (strstr(NewCommand, "PC") == NewCommand){ // "Program current" command
 		int Result = sscanf( NewCommand, "PC%f\r\n", &CommandFloatingPointArgument );
@@ -99,22 +100,23 @@ CommandErrors executeCommand(void){
 		printf( "command <%s>  %d  %f\n", NewCommand, ErrorCode, CommandFloatingPointArgument );
 	}
 	else if (strstr(NewCommand, "Z") == NewCommand){ // "Select channel" command
-		int Result = sscanf( NewCommand, "Z%u\r\n", &CommandUnsignedArgument );
+		unsigned TemporaryChannel;
+		int Result = sscanf( NewCommand, "Z%u\r\n", &TemporaryChannel );
 		if ((Result != 1) || (NewCommand[CommadLength-2] != '\r') || (NewCommand[CommadLength-1] != '\n')){
 			ErrorCode = COMMAND_Z_INCORRECT_FORMAT;
 		}
 		else{
-			if ((0 == CommandUnsignedArgument) || (CommandUnsignedArgument > NUMBER_OF_POWER_SUPPLIES)){
+			if ((0 == TemporaryChannel) || (TemporaryChannel > NUMBER_OF_POWER_SUPPLIES)){
 				ErrorCode = COMMAND_Z_INCORRECT_VALUE;
 			}
 			else{
 				// essential action
-				SelectedChannel = CommandUnsignedArgument-1;
+				SelectedChannel = TemporaryChannel-1;
 				transmitViaSerialPort("\r\n>");
 			}
 		}
 
-		printf( "command <%s>  %d  %u\n", NewCommand, ErrorCode, CommandUnsignedArgument );
+		printf( "command <%s>  %d  %u-1=?=%u\n", NewCommand, ErrorCode, TemporaryChannel, SelectedChannel );
 	}
 	else if (strstr(NewCommand, "?Z") == NewCommand){ // "Get selected channel number" command
 		if ((NewCommand[CommadLength-2] != '\r') || (NewCommand[CommadLength-1] != '\n')){

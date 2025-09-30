@@ -51,7 +51,7 @@
 
 typedef enum OrderCodesEnum{
 	ORDER_NONE		= 0,
-	ORDER_COMPLETED	= 1,
+	ORDER_ACCEPTED	= 1,
 	ORDER_PCX		= 2,
 	ORDER_PC		= 3,
 } OrderCodes;
@@ -86,7 +86,7 @@ extern OrderCodes OrderCode;
 
 extern float CommandFloatingPointArgument;
 
-extern unsigned CommandUnsignedArgument;
+extern uint16_t CommandUnsignedArgument;
 
 //---------------------------------------------------------------------------------------------------
 // Function prototypes
