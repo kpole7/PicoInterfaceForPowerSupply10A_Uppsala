@@ -13,8 +13,6 @@
 
 #define COMMAND_MINIMAL_LENGTH			3
 
-#define NUMBER_OF_POWER_SUPPLIES		4
-
 #define INITIAL_DAC_VALUE				0x800
 #define INITIAL_MAIN_CONTACTOR_STATE	false
 
@@ -32,14 +30,11 @@ OrderCodes OrderCode;
 
 float CommandFloatingPointArgument;
 
-uint16_t CommandUnsignedArgument;
+uint16_t RequiredDacValue[NUMBER_OF_POWER_SUPPLIES];
 
 //---------------------------------------------------------------------------------------------------
 // Local variables
 //---------------------------------------------------------------------------------------------------
-
-/// @brief Setpoint value sent to DAC
-uint16_t RequiredDacValue[NUMBER_OF_POWER_SUPPLIES];
 
 /// @brief The state of the power contactor: true=power on; false=power off
 bool MainContactorStateOn;
@@ -74,11 +69,13 @@ CommandErrors executeCommand(void){
 		}
 		else{
 			// essential action
-			CommandUnsignedArgument = prepareDataForTwoPcf8574( DacValue, SelectedChannel );
+			if (SelectedChannel < NUMBER_OF_POWER_SUPPLIES){
+				RequiredDacValue[SelectedChannel] = (uint16_t)DacValue;
+			}
 			OrderCode = ORDER_PCX;
 			transmitViaSerialPort("\r\n>");
 		}
-		printf( "command <%s> E=%d ch=%d %04X > %04X\n", NewCommand, ErrorCode, SelectedChannel, DacValue, CommandUnsignedArgument );
+		printf( "command <%s> E=%d ch=%d %04X\n", NewCommand, ErrorCode, SelectedChannel, DacValue );
 	}
 	else if (strstr(NewCommand, "PC") == NewCommand){ // "Program current" command
 		int Result = sscanf( NewCommand, "PC%f\r\n", &CommandFloatingPointArgument );

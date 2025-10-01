@@ -43,7 +43,9 @@
 // Macro directives
 //---------------------------------------------------------------------------------------------------
 
-#define COMMAND_BUFFER_LENGTH	(LONGEST_COMMAND_LENGTH+10)
+#define NUMBER_OF_POWER_SUPPLIES	4
+
+#define COMMAND_BUFFER_LENGTH		(LONGEST_COMMAND_LENGTH+10)
 
 //---------------------------------------------------------------------------------------------------
 // Constants
@@ -84,9 +86,8 @@ extern uint8_t SelectedChannel;
 
 extern OrderCodes OrderCode;
 
-extern float CommandFloatingPointArgument;
-
-extern uint16_t CommandUnsignedArgument;
+/// @brief Setpoint value for a DAC
+extern uint16_t RequiredDacValue[NUMBER_OF_POWER_SUPPLIES];
 
 //---------------------------------------------------------------------------------------------------
 // Function prototypes

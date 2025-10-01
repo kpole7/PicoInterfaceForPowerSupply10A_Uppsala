@@ -21,9 +21,8 @@
 
 #define GPIO_FOR_NOT_WR_OUTPUT	10
 
-
 #define DEBUG_DAC				1
-
+#define DEBUG_SAMPLES_DAC		100
 
 //---------------------------------------------------------------------------------------------------
 // Constants
@@ -79,10 +78,21 @@ static uint16_t DebugCounter, DebugDacArgument;
 #endif
 
 //---------------------------------------------------------------------------------------------------
+// Function prototypes
+//---------------------------------------------------------------------------------------------------
+
+// @param DacRawValue binary value (12-bit) to be written to a DAC
+// @param AddressOfPsu hardware address of PSU (determined by the switch SW1)
+// @return 16-bit data to be written to the two PCF8574 integrated circuits
+//         the lower byte is to be written to PCF8574 with I2C address 0x2F
+//         the higher byte is to be written to PCF8574 with I2C address 0x21
+static uint16_t prepareDataForTwoPcf8574( uint16_t DacRawValue, uint8_t AddressOfPsu );
+
+//---------------------------------------------------------------------------------------------------
 // Function definitions
 //---------------------------------------------------------------------------------------------------
 
-uint16_t prepareDataForTwoPcf8574( uint16_t DacRawValue, uint8_t AddressOfPsu ){
+static uint16_t prepareDataForTwoPcf8574( uint16_t DacRawValue, uint8_t AddressOfPsu ){
 	uint16_t Result = 0;
 	for (uint8_t J = 0; J < DAC_NUMBER_OF_BITS; J++){
 		if ((DacRawValue & (1 << J)) != 0){
@@ -128,19 +138,20 @@ void psuTalksTimeTick(void){
 			// take a new order
 			StateCode = 0;
 			WorkingOrder = OrderCode;
-			WorkingUnsignedArgument = CommandUnsignedArgument;
+			WorkingUnsignedArgument = RequiredDacValue[SelectedChannel];
 			OrderCode = ORDER_ACCEPTED;
 		}
 		else{
 
 #if DEBUG_DAC
+#if 1 // chopping
 			DebugCounter--;
 			if (0 == DebugCounter){
 				if (0 == DebugDacArgument){
 					DebugDacArgument = 1;
 					StateCode = 0;
 					WorkingOrder = ORDER_PCX;
-					WorkingUnsignedArgument = CommandUnsignedArgument;
+					WorkingUnsignedArgument = prepareDataForTwoPcf8574( RequiredDacValue[SelectedChannel], SelectedChannel );
 				}
 				else{
 					DebugDacArgument = 0;
@@ -151,6 +162,34 @@ void psuTalksTimeTick(void){
 					changeDebugPin2(true);
 				}
 			}
+#else
+			// sawtooth pattern
+			DebugCounter--;
+			if (0 == DebugCounter){
+				uint16_t TemporaryDac = RequiredDacValue[SelectedChannel];
+				if (TemporaryDac >= 4096-DEBUG_SAMPLES_DAC){
+					TemporaryDac = 4096-DEBUG_SAMPLES_DAC;
+				}
+
+				if (DEBUG_SAMPLES_DAC > DebugDacArgument){
+					StateCode = 0;
+					WorkingOrder = ORDER_PCX;
+					WorkingUnsignedArgument = prepareDataForTwoPcf8574( DebugDacArgument+TemporaryDac, SelectedChannel );
+				}
+				else if (DEBUG_SAMPLES_DAC == DebugDacArgument){
+					DebugCounter = 10;
+					StateCode = 0;
+					WorkingOrder = ORDER_PCX;
+					WorkingUnsignedArgument = prepareDataForTwoPcf8574( TemporaryDac, SelectedChannel );
+				}
+				else{
+					DebugCounter = 15;
+					DebugDacArgument = 0;
+					changeDebugPin2(true);
+				}
+			}
+			DebugDacArgument++;
+#endif
 #endif
 
 
