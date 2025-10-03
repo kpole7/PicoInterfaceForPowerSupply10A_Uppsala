@@ -61,10 +61,11 @@ int main() {
 	initializePsuTalks();
 	initializeAdcMeasurements();
 	initializeDebugDevices();
+	initializeRstlProtocol();
 	turnOnLedOnBoard();
 	startPeriodicInterrupt();
 
-	printf("Hello guys %d\n", (int)sizeof(float));
+	printf("Hello guys\n");
 
     while (true) {
         // main loop

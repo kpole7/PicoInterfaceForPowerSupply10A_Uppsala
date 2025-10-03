@@ -16,7 +16,7 @@
 #define INITIAL_DAC_VALUE				0x800
 #define INITIAL_MAIN_CONTACTOR_STATE	false
 
-#define GPIO_FOR_SIG2_INPUT				11
+#define GPIO_FOR_POWER_CONTACTOR		11
 
 //---------------------------------------------------------------------------------------------------
 // Global variables
@@ -37,18 +37,23 @@ uint16_t RequiredDacValue[NUMBER_OF_POWER_SUPPLIES];
 //---------------------------------------------------------------------------------------------------
 
 /// @brief The state of the power contactor: true=power on; false=power off
-bool MainContactorStateOn;
+bool IsMainContactorStateOn;
 
 //---------------------------------------------------------------------------------------------------
 // Function definitions
 //---------------------------------------------------------------------------------------------------
 
 void initializeRstlProtocol(void){
+    gpio_init(GPIO_FOR_POWER_CONTACTOR);
+    gpio_put(GPIO_FOR_POWER_CONTACTOR, INITIAL_MAIN_CONTACTOR_STATE);
+    gpio_set_dir(GPIO_FOR_POWER_CONTACTOR, true);  // true = output
+    gpio_set_drive_strength(GPIO_FOR_POWER_CONTACTOR, GPIO_DRIVE_STRENGTH_12MA);
+	IsMainContactorStateOn = INITIAL_MAIN_CONTACTOR_STATE;
+
 	SelectedChannel = 0;
 	for (uint8_t J = 0; J < NUMBER_OF_POWER_SUPPLIES; J++){
 		RequiredDacValue[J] = INITIAL_DAC_VALUE;
 	}
-	MainContactorStateOn = INITIAL_MAIN_CONTACTOR_STATE;
 	OrderCode = ORDER_NONE;
 }
 
@@ -73,7 +78,7 @@ CommandErrors executeCommand(void){
 				RequiredDacValue[SelectedChannel] = (uint16_t)DacValue;
 			}
 			OrderCode = ORDER_PCX;
-			transmitViaSerialPort("\r\n>");
+			transmitViaSerialPort(">");
 		}
 		printf( "command <%s> E=%d ch=%d %04X\n", NewCommand, ErrorCode, SelectedChannel, DacValue );
 	}
@@ -90,7 +95,7 @@ CommandErrors executeCommand(void){
 				// essential action
 
 
-				transmitViaSerialPort("\r\n>");
+				transmitViaSerialPort(">");
 			}
 		}
 
@@ -109,7 +114,7 @@ CommandErrors executeCommand(void){
 			else{
 				// essential action
 				SelectedChannel = TemporaryChannel-1;
-				transmitViaSerialPort("\r\n>");
+				transmitViaSerialPort(">");
 			}
 		}
 
@@ -121,19 +126,60 @@ CommandErrors executeCommand(void){
 		}
 		else{
 			// essential action
-			snprintf( ResponseBuffer, COMMAND_BUFFER_LENGTH-1, "%u\r\n>", (unsigned)(SelectedChannel+1) );
+			snprintf( ResponseBuffer, COMMAND_BUFFER_LENGTH-1, "Z=%u\r\n>", (unsigned)(SelectedChannel+1) );
 			transmitViaSerialPort( ResponseBuffer );
 		}
 
 		printf( "command <%s>  %d  %u\n", NewCommand, ErrorCode, SelectedChannel+1 );
 	}
-	else if (strstr(NewCommand, "MC") == NewCommand){ // "Get selected channel number" command
+	else if (strstr(NewCommand, "POWER") == NewCommand){ // "Select channel" command
+		unsigned TemporaryPowerArgument;
+		int Result = sscanf( NewCommand, "POWER%u\r\n", &TemporaryPowerArgument );
+		if ((Result != 1) || (NewCommand[CommadLength-2] != '\r') || (NewCommand[CommadLength-1] != '\n')){
+			ErrorCode = COMMAND_POWER_INCORRECT_FORMAT;
+		}
+		else{
+			if (TemporaryPowerArgument > 1){
+				ErrorCode = COMMAND_POWER_INCORRECT_VALUE;
+			}
+			else{
+				// essential action
+				if (1 == TemporaryPowerArgument){
+					IsMainContactorStateOn = true;
+				}
+				else{
+					IsMainContactorStateOn = false;
+				}
+				gpio_put(GPIO_FOR_POWER_CONTACTOR, IsMainContactorStateOn);
+				transmitViaSerialPort(">");
+			}
+		}
+
+		printf( "command <%s>  E=%d  Arg=%u\n", NewCommand, ErrorCode, TemporaryPowerArgument );
+	}
+	else if (strstr(NewCommand, "?POWER") == NewCommand){ // "Get selected channel number" command
+		if ((NewCommand[CommadLength-2] != '\r') || (NewCommand[CommadLength-1] != '\n')){
+			ErrorCode = COMMAND__POWER_INCORRECT_FORMAT;
+		}
+		else{
+			// essential action
+			if (IsMainContactorStateOn){
+				transmitViaSerialPort( "Power=On\r\n>" );
+			}
+			else{
+				transmitViaSerialPort( "Power=Off\r\n>" );
+			}
+		}
+
+		printf( "command <%s>  %d  %c\n", NewCommand, ErrorCode, IsMainContactorStateOn?'1':'0' );
+	}
+	else if (strstr(NewCommand, "MC") == NewCommand){ // "Measure current" command
 		if ((NewCommand[CommadLength-2] != '\r') || (NewCommand[CommadLength-1] != '\n')){
 			ErrorCode = COMMAND_MC_INCORRECT_FORMAT;
 		}
 		else{
 			// essential action
-			snprintf( ResponseBuffer, COMMAND_BUFFER_LENGTH-1, "%f\r\n>", getVoltage( SelectedChannel>0? 1 : 0 ) );
+			snprintf( ResponseBuffer, COMMAND_BUFFER_LENGTH-1, "V=%f\r\n>", getVoltage( SelectedChannel>0? 1 : 0 ) );
 			transmitViaSerialPort( ResponseBuffer );
 		}
 
@@ -147,7 +193,7 @@ CommandErrors executeCommand(void){
 			// essential action
 
 
-			transmitViaSerialPort("\r\n>");
+			transmitViaSerialPort(">");
 		}
 
 		printf( "command <%s>  %d  %u\n", NewCommand, ErrorCode, SelectedChannel+1 );

@@ -59,17 +59,20 @@ typedef enum OrderCodesEnum{
 } OrderCodes;
 
 typedef enum CommandErrorsEnum{
-	COMMAND_GOOD				= 0,
-	COMMAND_UNKNOWN				= 1,
-	COMMAND_INCORRECT_FORMAT	= 2,
-	COMMAND_PCX_INCORRECT_FORMAT= 3,
-	COMMAND_PC_INCORRECT_FORMAT	= 4,
-	COMMAND_PC_INCORRECT_VALUE	= 5,
-	COMMAND_Z_INCORRECT_FORMAT	= 6,
-	COMMAND_Z_INCORRECT_VALUE	= 7,
-	COMMAND__Z_INCORRECT_FORMAT	= 8,
-	COMMAND_MC_INCORRECT_FORMAT	= 9,
-	COMMAND_MY_INCORRECT_FORMAT	= 10,
+	COMMAND_GOOD					= 0,
+	COMMAND_UNKNOWN					= 1,
+	COMMAND_INCORRECT_FORMAT		= 2,
+	COMMAND_PCX_INCORRECT_FORMAT	= 3,
+	COMMAND_PC_INCORRECT_FORMAT		= 4,
+	COMMAND_PC_INCORRECT_VALUE		= 5,
+	COMMAND_Z_INCORRECT_FORMAT		= 6,
+	COMMAND_Z_INCORRECT_VALUE		= 7,
+	COMMAND__Z_INCORRECT_FORMAT		= 8,
+	COMMAND_MC_INCORRECT_FORMAT		= 9,
+	COMMAND_MY_INCORRECT_FORMAT		= 10,
+	COMMAND_POWER_INCORRECT_FORMAT	= 11,
+	COMMAND_POWER_INCORRECT_VALUE	= 12,
+	COMMAND__POWER_INCORRECT_FORMAT	= 13,
 } CommandErrors;
 
 //---------------------------------------------------------------------------------------------------
@@ -93,7 +96,7 @@ extern uint16_t RequiredDacValue[NUMBER_OF_POWER_SUPPLIES];
 // Function prototypes
 //---------------------------------------------------------------------------------------------------
 
-/// @brief This function initializes variables of this module
+/// @brief This function initializes GPIO controlling the the power contactor and initializes variables of this module
 void initializeRstlProtocol(void);
 
 /// @brief This function executes the command stored in NewCommand buffer

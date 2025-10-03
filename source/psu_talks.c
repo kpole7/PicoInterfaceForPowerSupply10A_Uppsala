@@ -21,7 +21,7 @@
 
 #define GPIO_FOR_NOT_WR_OUTPUT	10
 
-#define DEBUG_DAC				1
+#define DEBUG_DAC				0
 #define DEBUG_SAMPLES_DAC		100
 
 //---------------------------------------------------------------------------------------------------
@@ -138,7 +138,7 @@ void psuTalksTimeTick(void){
 			// take a new order
 			StateCode = 0;
 			WorkingOrder = OrderCode;
-			WorkingUnsignedArgument = RequiredDacValue[SelectedChannel];
+			WorkingUnsignedArgument = prepareDataForTwoPcf8574( RequiredDacValue[SelectedChannel], SelectedChannel );
 			OrderCode = ORDER_ACCEPTED;
 		}
 		else{
