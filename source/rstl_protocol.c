@@ -2,6 +2,7 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <math.h>
 #include "pico/stdlib.h"
 #include "rstl_protocol.h"
 #include "psu_talks.h"
@@ -18,6 +19,10 @@
 
 #define GPIO_FOR_POWER_CONTACTOR		11
 
+#define AMPERES_TO_DAC_COEFFICIENT		(4096.0 / 20.0)
+#define OFFSET_IN_DAC_UNITS				2048
+#define FULL_SCALE_IN_DAC_UNITS			4095	// 4095 = 0xFFF
+
 //---------------------------------------------------------------------------------------------------
 // Global variables
 //---------------------------------------------------------------------------------------------------
@@ -28,9 +33,8 @@ uint8_t SelectedChannel;
 
 OrderCodes OrderCode;
 
-float CommandFloatingPointArgument;
-
 uint16_t RequiredDacValue[NUMBER_OF_POWER_SUPPLIES];
+float RequiredAmperesValue[NUMBER_OF_POWER_SUPPLIES];
 
 //---------------------------------------------------------------------------------------------------
 // Local variables
@@ -53,6 +57,7 @@ void initializeRstlProtocol(void){
 	SelectedChannel = 0;
 	for (uint8_t J = 0; J < NUMBER_OF_POWER_SUPPLIES; J++){
 		RequiredDacValue[J] = INITIAL_DAC_VALUE;
+		RequiredAmperesValue[J] = 0.0;
 	}
 	OrderCode = ORDER_NONE;
 }
@@ -76,6 +81,7 @@ CommandErrors executeCommand(void){
 			// essential action
 			if (SelectedChannel < NUMBER_OF_POWER_SUPPLIES){
 				RequiredDacValue[SelectedChannel] = (uint16_t)DacValue;
+				RequiredAmperesValue[SelectedChannel] = NAN;
 			}
 			OrderCode = ORDER_PCX;
 			transmitViaSerialPort(">");
@@ -83,6 +89,8 @@ CommandErrors executeCommand(void){
 		printf( "command <%s> E=%d ch=%d %04X\n", NewCommand, ErrorCode, SelectedChannel, DacValue );
 	}
 	else if (strstr(NewCommand, "PC") == NewCommand){ // "Program current" command
+		float CommandFloatingPointArgument = NAN;
+		int16_t ValueInDacUnits = 22222; // value in the case of failure (out of range)
 		int Result = sscanf( NewCommand, "PC%f\r\n", &CommandFloatingPointArgument );
 		if ((Result != 1) || (NewCommand[CommadLength-2] != '\r') || (NewCommand[CommadLength-1] != '\n')){
 			ErrorCode = COMMAND_PC_INCORRECT_FORMAT;
@@ -93,13 +101,24 @@ CommandErrors executeCommand(void){
 			}
 			else{
 				// essential action
-
-
+				ValueInDacUnits = (int16_t)round(CommandFloatingPointArgument * AMPERES_TO_DAC_COEFFICIENT);
+				ValueInDacUnits += OFFSET_IN_DAC_UNITS;
+				if (ValueInDacUnits < 0){
+					ValueInDacUnits = 0;
+				}
+				if (FULL_SCALE_IN_DAC_UNITS < ValueInDacUnits){
+					ValueInDacUnits = FULL_SCALE_IN_DAC_UNITS;
+				}
+				if (SelectedChannel < NUMBER_OF_POWER_SUPPLIES){
+					RequiredDacValue[SelectedChannel] = (uint16_t)ValueInDacUnits;
+					RequiredAmperesValue[SelectedChannel] = CommandFloatingPointArgument;
+				}
+				OrderCode = ORDER_PCX;
 				transmitViaSerialPort(">");
 			}
 		}
 
-		printf( "command <%s>  %d  %f\n", NewCommand, ErrorCode, CommandFloatingPointArgument );
+		printf( "command <%s>  E=%d  %.3f > %d\n", NewCommand, ErrorCode, CommandFloatingPointArgument, ValueInDacUnits );
 	}
 	else if (strstr(NewCommand, "Z") == NewCommand){ // "Select channel" command
 		unsigned TemporaryChannel;
