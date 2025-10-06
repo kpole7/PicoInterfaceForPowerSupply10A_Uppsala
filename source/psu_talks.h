@@ -12,6 +12,12 @@
 #include "rstl_protocol.h"
 
 //---------------------------------------------------------------------------------------------------
+// Macro directives
+//---------------------------------------------------------------------------------------------------
+
+#define INITIAL_MAIN_CONTACTOR_STATE	false
+
+//---------------------------------------------------------------------------------------------------
 // Function prototypes
 //---------------------------------------------------------------------------------------------------
 
@@ -21,5 +27,7 @@ void initializePsuTalks(void);
 /// @brief This function is called periodically by the time interrupt handler
 void psuTalksTimeTick(void);
 
+/// @brief This function changes the power contactor state
+void setMainContactorState( bool IsMainContactorStateOn );
 
 #endif // SOURCE_PSU_TALKS_H_

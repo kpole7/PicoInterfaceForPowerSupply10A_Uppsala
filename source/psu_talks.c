@@ -10,19 +10,21 @@
 //---------------------------------------------------------------------------------------------------
 
 // The 1'st PCF8574 address (A0=A1=A2=high)
-#define PCF8574_ADDRESS_2		0x27
+#define PCF8574_ADDRESS_2			0x27
 
 // The 2'nd PCF8574 address (A0=high; A1=A2=low)
-#define PCF8574_ADDRESS_1		0x21
+#define PCF8574_ADDRESS_1			0x21
 
-#define DAC_NUMBER_OF_BITS		12
+#define DAC_NUMBER_OF_BITS			12
 
-#define PSU_ADDRESS_BITS		3
+#define PSU_ADDRESS_BITS			3
 
-#define GPIO_FOR_NOT_WR_OUTPUT	10
+#define GPIO_FOR_NOT_WR_OUTPUT		10
 
-#define DEBUG_DAC				0
-#define DEBUG_SAMPLES_DAC		100
+#define GPIO_FOR_POWER_CONTACTOR	11
+
+#define DEBUG_DAC					0
+#define DEBUG_SAMPLES_DAC			100
 
 //---------------------------------------------------------------------------------------------------
 // Constants
@@ -121,6 +123,10 @@ void initializePsuTalks(void){
 	DebugDacArgument = 0;
 #endif
 
+    gpio_init(GPIO_FOR_POWER_CONTACTOR);
+    gpio_put(GPIO_FOR_POWER_CONTACTOR, INITIAL_MAIN_CONTACTOR_STATE);
+    gpio_set_dir(GPIO_FOR_POWER_CONTACTOR, true);  // true = output
+    gpio_set_drive_strength(GPIO_FOR_POWER_CONTACTOR, GPIO_DRIVE_STRENGTH_12MA);
 }
 
 void psuTalksTimeTick(void){
@@ -255,3 +261,6 @@ void psuTalksTimeTick(void){
 	}
 }
 
+void setMainContactorState( bool IsMainContactorStateOn ){
+	gpio_put(GPIO_FOR_POWER_CONTACTOR, IsMainContactorStateOn);
+}

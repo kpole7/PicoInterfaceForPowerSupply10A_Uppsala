@@ -15,9 +15,6 @@
 #define COMMAND_MINIMAL_LENGTH			3
 
 #define INITIAL_DAC_VALUE				0x800
-#define INITIAL_MAIN_CONTACTOR_STATE	false
-
-#define GPIO_FOR_POWER_CONTACTOR		11
 
 #define AMPERES_TO_DAC_COEFFICIENT		(4096.0 / 20.0)
 #define OFFSET_IN_DAC_UNITS				2048
@@ -48,18 +45,14 @@ bool IsMainContactorStateOn;
 //---------------------------------------------------------------------------------------------------
 
 void initializeRstlProtocol(void){
-    gpio_init(GPIO_FOR_POWER_CONTACTOR);
-    gpio_put(GPIO_FOR_POWER_CONTACTOR, INITIAL_MAIN_CONTACTOR_STATE);
-    gpio_set_dir(GPIO_FOR_POWER_CONTACTOR, true);  // true = output
-    gpio_set_drive_strength(GPIO_FOR_POWER_CONTACTOR, GPIO_DRIVE_STRENGTH_12MA);
-	IsMainContactorStateOn = INITIAL_MAIN_CONTACTOR_STATE;
-
 	SelectedChannel = 0;
 	for (uint8_t J = 0; J < NUMBER_OF_POWER_SUPPLIES; J++){
 		RequiredDacValue[J] = INITIAL_DAC_VALUE;
 		RequiredAmperesValue[J] = 0.0;
 	}
 	OrderCode = ORDER_NONE;
+
+	IsMainContactorStateOn = INITIAL_MAIN_CONTACTOR_STATE;
 }
 
 CommandErrors executeCommand(void){
@@ -169,7 +162,7 @@ CommandErrors executeCommand(void){
 				else{
 					IsMainContactorStateOn = false;
 				}
-				gpio_put(GPIO_FOR_POWER_CONTACTOR, IsMainContactorStateOn);
+				setMainContactorState( IsMainContactorStateOn );
 				transmitViaSerialPort(">");
 			}
 		}
