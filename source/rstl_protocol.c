@@ -17,6 +17,7 @@
 #define INITIAL_DAC_VALUE				0x800
 
 #define AMPERES_TO_DAC_COEFFICIENT		(4096.0 / 20.0)
+#define DAC_TO_AMPERES_COEFFICIENT		(20.0 / 4096.0)
 #define OFFSET_IN_DAC_UNITS				2048
 #define FULL_SCALE_IN_DAC_UNITS			4095	// 4095 = 0xFFF
 
@@ -82,7 +83,9 @@ CommandErrors executeCommand(void){
 			// essential action
 			if (SelectedChannel < NUMBER_OF_POWER_SUPPLIES){
 				RequiredDacValue[SelectedChannel] = (uint16_t)DacValue;
-				RequiredAmperesValue[SelectedChannel] = NAN;
+				RequiredAmperesValue[SelectedChannel] = (float)DacValue;
+				RequiredAmperesValue[SelectedChannel] -= (float)OFFSET_IN_DAC_UNITS;
+				RequiredAmperesValue[SelectedChannel] *= DAC_TO_AMPERES_COEFFICIENT;
 			}
 			OrderCode = ORDER_PCX;
 			transmitViaSerialPort(">");
@@ -120,6 +123,18 @@ CommandErrors executeCommand(void){
 		}
 
 		printf( "command <%s>  E=%d  %.3f > %d\n", NewCommand, ErrorCode, CommandFloatingPointArgument, ValueInDacUnits );
+	}
+	else if (strstr(NewCommand, "?PC") == NewCommand){ // "Get set-point value of current" command
+		if ((NewCommand[CommadLength-2] != '\r') || (NewCommand[CommadLength-1] != '\n')){
+			ErrorCode = COMMAND__PC_INCORRECT_FORMAT;
+		}
+		else{
+			// essential action
+			snprintf( ResponseBuffer, COMMAND_BUFFER_LENGTH-1, "%.2f\r\n>", RequiredAmperesValue[SelectedChannel] );
+			transmitViaSerialPort( ResponseBuffer );
+		}
+
+		printf( "command <%s>  E=%d  ch=%u val=%f\n", NewCommand, ErrorCode, SelectedChannel+1, RequiredAmperesValue[SelectedChannel] );
 	}
 	else if (strstr(NewCommand, "Z") == NewCommand){ // "Select channel" command
 		unsigned TemporaryChannel;
@@ -223,6 +238,7 @@ CommandErrors executeCommand(void){
 
 		printf( "command <%s>  E=%d  ch=%u Sig2=%c\n", NewCommand, ErrorCode, SelectedChannel+1, Sig2Value? '1':'0' );
 	}
+#if 0 // cancelled commands
 	else if (strstr(NewCommand, "ADDR") == NewCommand){ // "Set values of addresses" command
 		unsigned TemporaryAddressArgument1, TemporaryAddressArgument2, TemporaryAddressArgument3, TemporaryAddressArgument4;
 		int Result = sscanf( NewCommand, "ADDR:%X;%X;%X;%X\r\n",
@@ -266,6 +282,7 @@ CommandErrors executeCommand(void){
 		printf( "command <%s>  E=%d %02X;%02X;%02X;%02X\n", NewCommand, ErrorCode,
 				AddressTable[0], AddressTable[1], AddressTable[2], AddressTable[3] );
 	}
+#endif
 	else{
 		ErrorCode = COMMAND_UNKNOWN;
 		printf( "command <%s>  %d\n", NewCommand, ErrorCode );

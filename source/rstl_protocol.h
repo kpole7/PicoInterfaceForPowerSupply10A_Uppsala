@@ -81,6 +81,7 @@ typedef enum CommandErrorsEnum{
 	COMMAND_ADDRESS_INCORRECT_FORMAT= 14,
 	COMMAND_ADDRESS_INCORRECT_VALUE	= 15,
 	COMMAND__ADDRESS_INCORRECT_FORMAT= 16,
+	COMMAND__PC_INCORRECT_FORMAT	= 17,
 } CommandErrors;
 
 //---------------------------------------------------------------------------------------------------
