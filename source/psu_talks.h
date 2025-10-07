@@ -30,4 +30,7 @@ void psuTalksTimeTick(void);
 /// @brief This function changes the power contactor state
 void setMainContactorState( bool IsMainContactorStateOn );
 
+/// @brief This function reads the logical state of the signal marked as "Sig2" in the diagram
+bool getLogicFeedbackFromPsu( void );
+
 #endif // SOURCE_PSU_TALKS_H_

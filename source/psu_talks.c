@@ -21,7 +21,10 @@
 
 #define GPIO_FOR_NOT_WR_OUTPUT		10
 
+// Output port for switching the power contactor on/off
 #define GPIO_FOR_POWER_CONTACTOR	11
+
+#define GPIO_FOR_PSU_LOGIC_FEEDBACK	12
 
 #define DEBUG_DAC					0
 #define DEBUG_SAMPLES_DAC			100
@@ -127,6 +130,9 @@ void initializePsuTalks(void){
     gpio_put(GPIO_FOR_POWER_CONTACTOR, INITIAL_MAIN_CONTACTOR_STATE);
     gpio_set_dir(GPIO_FOR_POWER_CONTACTOR, true);  // true = output
     gpio_set_drive_strength(GPIO_FOR_POWER_CONTACTOR, GPIO_DRIVE_STRENGTH_12MA);
+
+	gpio_init(GPIO_FOR_PSU_LOGIC_FEEDBACK);
+	gpio_set_dir(GPIO_FOR_PSU_LOGIC_FEEDBACK, GPIO_IN);
 }
 
 void psuTalksTimeTick(void){
@@ -264,3 +270,9 @@ void psuTalksTimeTick(void){
 void setMainContactorState( bool IsMainContactorStateOn ){
 	gpio_put(GPIO_FOR_POWER_CONTACTOR, IsMainContactorStateOn);
 }
+
+bool getLogicFeedbackFromPsu( void ){
+	return gpio_get( GPIO_FOR_PSU_LOGIC_FEEDBACK );
+}
+
+

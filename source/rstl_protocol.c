@@ -130,7 +130,7 @@ CommandErrors executeCommand(void){
 			}
 		}
 
-		printf( "command <%s>  %d  %u-1=?=%u\n", NewCommand, ErrorCode, TemporaryChannel, SelectedChannel );
+		printf( "command <%s>  E=%d  %u-1=?=%u\n", NewCommand, ErrorCode, TemporaryChannel, SelectedChannel );
 	}
 	else if (strstr(NewCommand, "?Z") == NewCommand){ // "Get selected channel number" command
 		if ((NewCommand[CommadLength-2] != '\r') || (NewCommand[CommadLength-1] != '\n')){
@@ -142,7 +142,7 @@ CommandErrors executeCommand(void){
 			transmitViaSerialPort( ResponseBuffer );
 		}
 
-		printf( "command <%s>  %d  %u\n", NewCommand, ErrorCode, SelectedChannel+1 );
+		printf( "command <%s>  E=%d  ch=%u\n", NewCommand, ErrorCode, SelectedChannel+1 );
 	}
 	else if (strstr(NewCommand, "POWER") == NewCommand){ // "Select channel" command
 		unsigned TemporaryPowerArgument;
@@ -176,14 +176,14 @@ CommandErrors executeCommand(void){
 		else{
 			// essential action
 			if (IsMainContactorStateOn){
-				transmitViaSerialPort( "Power=On\r\n>" );
+				transmitViaSerialPort( "1\r\n>" );
 			}
 			else{
-				transmitViaSerialPort( "Power=Off\r\n>" );
+				transmitViaSerialPort( "0\r\n>" );
 			}
 		}
 
-		printf( "command <%s>  %d  %c\n", NewCommand, ErrorCode, IsMainContactorStateOn?'1':'0' );
+		printf( "command <%s>  E=%d  %c\n", NewCommand, ErrorCode, IsMainContactorStateOn?'1':'0' );
 	}
 	else if (strstr(NewCommand, "MC") == NewCommand){ // "Measure current" command
 		if ((NewCommand[CommadLength-2] != '\r') || (NewCommand[CommadLength-1] != '\n')){
@@ -195,20 +195,25 @@ CommandErrors executeCommand(void){
 			transmitViaSerialPort( ResponseBuffer );
 		}
 
-		printf( "command <%s>  %d  %u\n", NewCommand, ErrorCode, SelectedChannel+1 );
+		printf( "command <%s>  E=%d  ch=%u\n", NewCommand, ErrorCode, SelectedChannel+1 );
 	}
 	else if (strstr(NewCommand, "MY") == NewCommand){ // "Get Sig2 value" command
+		bool Sig2Value = false;
 		if ((NewCommand[CommadLength-2] != '\r') || (NewCommand[CommadLength-1] != '\n')){
 			ErrorCode = COMMAND_MY_INCORRECT_FORMAT;
 		}
 		else{
 			// essential action
-
-
-			transmitViaSerialPort(">");
+			Sig2Value = getLogicFeedbackFromPsu();
+			if (Sig2Value){
+				transmitViaSerialPort( "1\r\n>" );
+			}
+			else{
+				transmitViaSerialPort( "0\r\n>" );
+			}
 		}
 
-		printf( "command <%s>  %d  %u\n", NewCommand, ErrorCode, SelectedChannel+1 );
+		printf( "command <%s>  E=%d  ch=%u Sig2=%c\n", NewCommand, ErrorCode, SelectedChannel+1, Sig2Value? '1':'0' );
 	}
 	else{
 		ErrorCode = COMMAND_UNKNOWN;
