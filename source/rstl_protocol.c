@@ -225,7 +225,7 @@ CommandErrors executeCommand(void){
 	}
 	else if (strstr(NewCommand, "ADDR") == NewCommand){ // "Set values of addresses" command
 		unsigned TemporaryAddressArgument1, TemporaryAddressArgument2, TemporaryAddressArgument3, TemporaryAddressArgument4;
-		int Result = sscanf( NewCommand, "ADDR%X;%X;%X;%X\r\n",
+		int Result = sscanf( NewCommand, "ADDR:%X;%X;%X;%X\r\n",
 				&TemporaryAddressArgument1, &TemporaryAddressArgument2, &TemporaryAddressArgument3, &TemporaryAddressArgument4 );
 		if ((Result != 4) || (NewCommand[CommadLength-2] != '\r') || (NewCommand[CommadLength-1] != '\n')){
 			ErrorCode = COMMAND_ADDRESS_INCORRECT_FORMAT;
@@ -258,7 +258,7 @@ CommandErrors executeCommand(void){
 		else{
 			// essential action
 			assert( NUMBER_OF_POWER_SUPPLIES == 4 );
-			snprintf( ResponseBuffer, COMMAND_BUFFER_LENGTH-1, "Addr: %04X %04X %04X %04X\r\n>",
+			snprintf( ResponseBuffer, COMMAND_BUFFER_LENGTH-1, "Addr:%04X;%04X;%04X;%04X\r\n>",
 					AddressTable[0], AddressTable[1], AddressTable[2], AddressTable[3] );
 			transmitViaSerialPort( ResponseBuffer );
 		}

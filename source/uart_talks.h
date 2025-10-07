@@ -13,7 +13,7 @@
 // Macro directives
 //---------------------------------------------------------------------------------------------------
 
-#define LONGEST_COMMAND_LENGTH				12			// ???
+#define LONGEST_COMMAND_LENGTH				28			// ???
 
 #define LONGEST_RESPONSE_LENGTH				60
 
