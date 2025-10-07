@@ -150,7 +150,7 @@ void psuTalksTimeTick(void){
 			// take a new order
 			StateCode = 0;
 			WorkingOrder = OrderCode;
-			WorkingUnsignedArgument = prepareDataForTwoPcf8574( RequiredDacValue[SelectedChannel], SelectedChannel );
+			WorkingUnsignedArgument = prepareDataForTwoPcf8574( RequiredDacValue[SelectedChannel], AddressTable[SelectedChannel] );
 			OrderCode = ORDER_ACCEPTED;
 		}
 		else{

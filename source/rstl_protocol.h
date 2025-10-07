@@ -47,6 +47,11 @@
 
 #define COMMAND_BUFFER_LENGTH		(LONGEST_COMMAND_LENGTH+10)
 
+#define INITIAL_ADDRESS_1			0
+#define INITIAL_ADDRESS_2			1
+#define INITIAL_ADDRESS_3			2
+#define INITIAL_ADDRESS_4			3
+
 //---------------------------------------------------------------------------------------------------
 // Constants
 //---------------------------------------------------------------------------------------------------
@@ -73,6 +78,9 @@ typedef enum CommandErrorsEnum{
 	COMMAND_POWER_INCORRECT_FORMAT	= 11,
 	COMMAND_POWER_INCORRECT_VALUE	= 12,
 	COMMAND__POWER_INCORRECT_FORMAT	= 13,
+	COMMAND_ADDRESS_INCORRECT_FORMAT= 14,
+	COMMAND_ADDRESS_INCORRECT_VALUE	= 15,
+	COMMAND__ADDRESS_INCORRECT_FORMAT= 16,
 } CommandErrors;
 
 //---------------------------------------------------------------------------------------------------
@@ -86,6 +94,8 @@ extern char NewCommand[COMMAND_BUFFER_LENGTH];
 /// @brief Currently selected (active) power supply unit
 /// All commands related to power supply settings apply to this device
 extern uint8_t SelectedChannel;
+
+extern uint8_t AddressTable[NUMBER_OF_POWER_SUPPLIES];
 
 extern OrderCodes OrderCode;
 
