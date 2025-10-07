@@ -248,7 +248,7 @@ CommandErrors executeCommand(void){
 			}
 		}
 
-		printf( "command <%s>  E=%d  Arg=%04X %04X %04X %04X\n", NewCommand, ErrorCode,
+		printf( "command <%s>  E=%d  Arg:%02X;%02X;%02X;%02X\n", NewCommand, ErrorCode,
 				TemporaryAddressArgument1, TemporaryAddressArgument2, TemporaryAddressArgument3, TemporaryAddressArgument4 );
 	}
 	else if (strstr(NewCommand, "?ADDR") == NewCommand){ // "Get values of addresses" command
@@ -258,12 +258,13 @@ CommandErrors executeCommand(void){
 		else{
 			// essential action
 			assert( NUMBER_OF_POWER_SUPPLIES == 4 );
-			snprintf( ResponseBuffer, COMMAND_BUFFER_LENGTH-1, "Addr:%04X;%04X;%04X;%04X\r\n>",
+			snprintf( ResponseBuffer, COMMAND_BUFFER_LENGTH-1, "Addr:%02X;%02X;%02X;%02X\r\n>",
 					AddressTable[0], AddressTable[1], AddressTable[2], AddressTable[3] );
 			transmitViaSerialPort( ResponseBuffer );
 		}
 
-		printf( "command <%s>  E=%d [...]\n", NewCommand, ErrorCode );
+		printf( "command <%s>  E=%d %02X;%02X;%02X;%02X\n", NewCommand, ErrorCode,
+				AddressTable[0], AddressTable[1], AddressTable[2], AddressTable[3] );
 	}
 	else{
 		ErrorCode = COMMAND_UNKNOWN;
