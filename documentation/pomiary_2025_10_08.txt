@@ -1,0 +1,5 @@
+górny kwadr. (Z=2)
+5A  5.22V
+
+dolny kwadr. (Z=1)
+5A  6.55V
