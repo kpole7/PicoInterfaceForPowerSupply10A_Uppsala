@@ -86,10 +86,6 @@ static volatile uint8_t StateCode;
 
 static volatile uint8_t I2cConsecutiveErrors;
 
-#if DEBUG_DAC
-static uint16_t DebugCounter, DebugDacArgument;
-#endif
-
 //---------------------------------------------------------------------------------------------------
 // Function prototypes
 //---------------------------------------------------------------------------------------------------
@@ -130,11 +126,6 @@ void initializePsuTalks(void){
 	StateCode = 0;
 	I2cConsecutiveErrors = 0;
 
-#if DEBUG_DAC
-	DebugCounter = 1000;
-	DebugDacArgument = 0;
-#endif
-
     gpio_init(GPIO_FOR_POWER_CONTACTOR);
     gpio_put(GPIO_FOR_POWER_CONTACTOR, INITIAL_MAIN_CONTACTOR_STATE);
     gpio_set_dir(GPIO_FOR_POWER_CONTACTOR, true);  // true = output
@@ -162,59 +153,6 @@ void psuTalksTimeTick(void){
 			WorkingOrder = OrderCode;
 			WorkingUnsignedArgument = prepareDataForTwoPcf8574( RequiredDacValue[SelectedChannel], AddressTable[SelectedChannel] );
 			OrderCode = ORDER_ACCEPTED;
-		}
-		else{
-
-#if DEBUG_DAC
-#if 1 // chopping
-			DebugCounter--;
-			if (0 == DebugCounter){
-				if (0 == DebugDacArgument){
-					DebugDacArgument = 1;
-					StateCode = 0;
-					WorkingOrder = ORDER_PCX;
-					WorkingUnsignedArgument = prepareDataForTwoPcf8574( RequiredDacValue[SelectedChannel], SelectedChannel );
-				}
-				else{
-					DebugDacArgument = 0;
-					StateCode = 0;
-					WorkingOrder = ORDER_PCX;
-					WorkingUnsignedArgument = prepareDataForTwoPcf8574( 0, SelectedChannel );
-
-					changeDebugPin2(true);
-				}
-			}
-#else
-			// sawtooth pattern
-			DebugCounter--;
-			if (0 == DebugCounter){
-				uint16_t TemporaryDac = RequiredDacValue[SelectedChannel];
-				if (TemporaryDac >= 4096-DEBUG_SAMPLES_DAC){
-					TemporaryDac = 4096-DEBUG_SAMPLES_DAC;
-				}
-
-				if (DEBUG_SAMPLES_DAC > DebugDacArgument){
-					StateCode = 0;
-					WorkingOrder = ORDER_PCX;
-					WorkingUnsignedArgument = prepareDataForTwoPcf8574( DebugDacArgument+TemporaryDac, SelectedChannel );
-				}
-				else if (DEBUG_SAMPLES_DAC == DebugDacArgument){
-					DebugCounter = 10;
-					StateCode = 0;
-					WorkingOrder = ORDER_PCX;
-					WorkingUnsignedArgument = prepareDataForTwoPcf8574( TemporaryDac, SelectedChannel );
-				}
-				else{
-					DebugCounter = 15;
-					DebugDacArgument = 0;
-					changeDebugPin2(true);
-				}
-			}
-			DebugDacArgument++;
-#endif
-#endif
-
-
 		}
 	}
 	if (ORDER_PCX == WorkingOrder){
@@ -265,11 +203,6 @@ void psuTalksTimeTick(void){
 
 			StateCode = 0;
 			WorkingOrder = ORDER_NONE;
-
-#if DEBUG_DAC
-			DebugCounter = 2;
-#endif
-
 			break;
 
 		default:
@@ -286,5 +219,4 @@ void setMainContactorState( bool IsMainContactorStateOn ){
 bool getLogicFeedbackFromPsu( void ){
 	return gpio_get( GPIO_FOR_PSU_LOGIC_FEEDBACK );
 }
-
 
