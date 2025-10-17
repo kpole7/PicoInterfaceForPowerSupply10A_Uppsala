@@ -1,4 +1,4 @@
-// rstl_protocol.c
+/// @file rstl_protocol.c
 
 #include <stdio.h>
 #include <string.h>
@@ -25,28 +25,35 @@
 // Global variables
 //---------------------------------------------------------------------------------------------------
 
+/// @brief This buffer is used to pass data from UART
+/// This buffer is filled by the uart_talks module and is interpreted by the rstl_protocol module
 char NewCommand[COMMAND_BUFFER_LENGTH];
 
+/// @brief Currently selected (active) power supply unit
+/// All commands related to power supply settings apply to this device
 uint8_t SelectedChannel;
 
 uint8_t AddressTable[NUMBER_OF_POWER_SUPPLIES];
 
 OrderCodes OrderCode;
 
+/// @brief Setpoint value for a DAC
 uint16_t RequiredDacValue[NUMBER_OF_POWER_SUPPLIES];
-float RequiredAmperesValue[NUMBER_OF_POWER_SUPPLIES];
 
 //---------------------------------------------------------------------------------------------------
 // Local variables
 //---------------------------------------------------------------------------------------------------
 
 /// @brief The state of the power contactor: true=power on; false=power off
-bool IsMainContactorStateOn;
+static bool IsMainContactorStateOn;
+
+static float RequiredAmperesValue[NUMBER_OF_POWER_SUPPLIES];
 
 //---------------------------------------------------------------------------------------------------
 // Function definitions
 //---------------------------------------------------------------------------------------------------
 
+/// @brief This function initializes GPIO controlling the the power contactor and initializes variables of this module
 void initializeRstlProtocol(void){
 	SelectedChannel = 0;
 	for (uint8_t J = 0; J < NUMBER_OF_POWER_SUPPLIES; J++){
@@ -64,6 +71,8 @@ void initializeRstlProtocol(void){
 	AddressTable[3] = INITIAL_ADDRESS_4;
 }
 
+/// @brief This function executes the command stored in NewCommand buffer
+/// @return value from enum CommandErrors
 CommandErrors executeCommand(void){
 	char ResponseBuffer[LONGEST_RESPONSE_LENGTH];
 	CommandErrors ErrorCode = COMMAND_GOOD;

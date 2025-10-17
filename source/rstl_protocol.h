@@ -1,4 +1,3 @@
-// rstl_protocol.h
 /// @file rstl_protocol.h
 /// @brief This module provides a higher layer of communication with the master unit
 ///

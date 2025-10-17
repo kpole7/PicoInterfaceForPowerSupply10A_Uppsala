@@ -1,4 +1,3 @@
-// psu_talks.h
 /// @file psu_talks.h
 /// @brief This module provides a higher layer of communication with the power supply units
 ///

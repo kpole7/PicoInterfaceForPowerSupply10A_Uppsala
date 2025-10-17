@@ -1,4 +1,4 @@
-// uart_talks.c
+/// @file uart_talks.c
 
 #include <stdbool.h>	// just for Eclipse
 
@@ -49,7 +49,7 @@ static volatile uint8_t UartOutputHead, UartOutputTail;
 static volatile uint8_t UartError;
 
 //---------------------------------------------------------------------------------------------------
-// Function prototypes
+// Local function prototypes
 //---------------------------------------------------------------------------------------------------
 
 static bool is_tx_irq_enabled(uart_inst_t *uart);
@@ -68,6 +68,7 @@ static bool is_tx_irq_enabled(uart_inst_t *uart) {
 	return (uart_get_hw(uart)->imsc & UART_UARTIMSC_TXIM_BITS) != 0;
 }
 
+/// @brief This function initializes hardware port (UART) and initializes state machines for serial communication
 void serialPortInitialization(void){
     uart_init(UART_ID, UART_BAUD_RATE);
     gpio_set_function(GPIO_FOR_UART_TX, UART_FUNCSEL_NUM(UART_ID, GPIO_FOR_UART_TX));
@@ -87,6 +88,7 @@ void serialPortInitialization(void){
 	WhenReceivedLastByte = (uint64_t)0;
 }
 
+/// @brief This function drives the state machine that receives frames via serial port
 void serialPortReceiver(void){
 	if (UartInputHead != UartInputTail){
 		// The input buffer is not empty
@@ -162,6 +164,11 @@ static void serialPortInterruptHandler( void ){
 	}
 }
 
+/// @brief This function starts sending the data stored in UartOutputBuffer
+/// The function copies the data from UartOutputBuffer to FIFO input buffer of UART
+/// @param TextToBeSent pointer to a string (character with code zero cannot be sent)
+/// @return 0 on success
+/// @return -1 on failure
 int8_t transmitViaSerialPort( const char* TextToBeSent ){
 	if (NULL == TextToBeSent){
 		return -1; // improper value of the argument

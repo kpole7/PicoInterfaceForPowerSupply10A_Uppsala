@@ -1,4 +1,3 @@
-// power_source.c
 /// @file power_source.c
 /// @brief **Program for the RaspberryPi RP2040-based interface for a 10A power supply (Uppsala)**
 ///
@@ -46,7 +45,7 @@
 //---------------------------------------------------------------------------------------------------
 
 /// @brief This function initializes and turns on the LED on pico board.
-void turnOnLedOnBoard(void);
+static void turnOnLedOnBoard(void);
 
 //---------------------------------------------------------------------------------------------------
 // Main routine
@@ -89,7 +88,7 @@ int main() {
 // Function definitions
 //---------------------------------------------------------------------------------------------------
 
-void turnOnLedOnBoard(void){
+static void turnOnLedOnBoard(void){
 	gpio_init(GPIO_FOR_PICO_ON_BOARD_LED);
 	gpio_set_dir(GPIO_FOR_PICO_ON_BOARD_LED, GPIO_OUT);
 	gpio_put(GPIO_FOR_PICO_ON_BOARD_LED, true);

@@ -1,4 +1,4 @@
-// psu_talks.c
+/// @file psu_talks.c
 
 #include "psu_talks.h"
 #include "i2c_outputs.h"
@@ -43,7 +43,7 @@ typedef enum {
 
 // This table shows what needs to be written to the PCF8574 expanders
 // to set a given bit of the digital-to-analog converter (DAC).
-uint16_t ConvertionDacToPcf8574[DAC_NUMBER_OF_BITS] = {
+static const uint16_t ConvertionDacToPcf8574[DAC_NUMBER_OF_BITS] = {
 		0x0080,
 		0x0040,
 		0x0020,
@@ -60,7 +60,7 @@ uint16_t ConvertionDacToPcf8574[DAC_NUMBER_OF_BITS] = {
 
 // This table shows what needs to be written to the PCF8574 expanders
 // to set a given bit of the address of a PSU
-uint16_t ConvertionPsuAddressToPcf8574[PSU_ADDRESS_BITS] = {
+static const uint16_t ConvertionPsuAddressToPcf8574[PSU_ADDRESS_BITS] = {
 		0x1000,
 		0x4000,
 		0x2000
@@ -70,7 +70,7 @@ uint16_t ConvertionPsuAddressToPcf8574[PSU_ADDRESS_BITS] = {
 // Variables
 //---------------------------------------------------------------------------------------------------
 
-static OrderCodes WorkingOrder;
+static volatile OrderCodes WorkingOrder;
 
 static uint16_t WorkingUnsignedArgument;
 
@@ -112,6 +112,7 @@ static uint16_t prepareDataForTwoPcf8574( uint16_t DacRawValue, uint8_t AddressO
 	return Result;
 }
 
+/// @brief This function initializes "not WR" output port used to communicate with PSUs
 void initializePsuTalks(void){
 	gpio_init(GPIO_FOR_NOT_WR_OUTPUT);
 	gpio_set_dir(GPIO_FOR_NOT_WR_OUTPUT, GPIO_OUT);
@@ -135,6 +136,7 @@ void initializePsuTalks(void){
 	gpio_set_dir(GPIO_FOR_PSU_LOGIC_FEEDBACK, GPIO_IN);
 }
 
+/// @brief This function is called periodically by the time interrupt handler
 void psuTalksTimeTick(void){
 	bool IsI2cSuccess;
 
@@ -267,10 +269,12 @@ void psuTalksTimeTick(void){
 	}
 }
 
+/// @brief This function changes the power contactor state
 void setMainContactorState( bool IsMainContactorStateOn ){
 	gpio_put(GPIO_FOR_POWER_CONTACTOR, IsMainContactorStateOn);
 }
 
+/// @brief This function reads the logical state of the signal marked as "Sig2" in the diagram
 bool getLogicFeedbackFromPsu( void ){
 	return gpio_get( GPIO_FOR_PSU_LOGIC_FEEDBACK );
 }

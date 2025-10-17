@@ -1,4 +1,3 @@
-// uart_talks.h
 /// @file uart_talks.h
 /// @brief This module implements the lower layer of communication with the master unit via serial port
 ///
@@ -33,6 +32,5 @@ void serialPortReceiver(void);
 /// @return 0 on success
 /// @return -1 on failure
 int8_t transmitViaSerialPort( const char* TextToBeSent );
-
 
 #endif // SOURCE_UART_TALKS_H_

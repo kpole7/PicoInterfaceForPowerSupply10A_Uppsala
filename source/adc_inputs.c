@@ -1,4 +1,4 @@
-// adc_inputs.c
+/// @file adc_inputs.c
 
 #include <math.h>
 #include "hardware/adc.h"
@@ -19,6 +19,7 @@ static uint16_t RawBufferAdc1[ADC_RAW_BUFFER_SIZE];
 /// @brief Index for writing new samples from ADC0 and ADC1
 static volatile uint32_t AdcBuffersHead = 0;
 
+/// @brief This function initializes peripherals for ADC measuring and the state machine for measurements
 void initializeAdcMeasurements(void){
 	adc_init();
 	adc_gpio_init(GPIO_FOR_ADC0);
@@ -27,6 +28,7 @@ void initializeAdcMeasurements(void){
 	AdcBuffersHead = 0;
 }
 
+/// @brief This function collects measurements from ADC; it is to be called by timer interrupt
 void getVoltageSamples(void){
     // Measure ADC0
     adc_select_input(0);
@@ -44,6 +46,7 @@ void getVoltageSamples(void){
     }
 }
 
+/// @brief This function measures the voltage at ADC input and make some calculations
 float getVoltage( uint8_t AdcIndex ){
 	if (0 == AdcIndex){
 		uint32_t Accumulator = 0;
