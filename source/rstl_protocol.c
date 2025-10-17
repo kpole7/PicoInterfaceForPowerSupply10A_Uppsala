@@ -33,9 +33,7 @@ char NewCommand[COMMAND_BUFFER_LENGTH];
 /// All commands related to power supply settings apply to this device
 uint8_t SelectedChannel;
 
-uint8_t AddressTable[NUMBER_OF_POWER_SUPPLIES];
-
-OrderCodes OrderCode;
+volatile OrderCodes OrderCode;
 
 /// @brief Setpoint value for a DAC
 uint16_t RequiredDacValue[NUMBER_OF_POWER_SUPPLIES];
@@ -63,12 +61,6 @@ void initializeRstlProtocol(void){
 	OrderCode = ORDER_NONE;
 
 	IsMainContactorStateOn = INITIAL_MAIN_CONTACTOR_STATE;
-
-	assert( NUMBER_OF_POWER_SUPPLIES == 4 );
-	AddressTable[0] = INITIAL_ADDRESS_1;
-	AddressTable[1] = INITIAL_ADDRESS_2;
-	AddressTable[2] = INITIAL_ADDRESS_3;
-	AddressTable[3] = INITIAL_ADDRESS_4;
 }
 
 /// @brief This function executes the command stored in NewCommand buffer
@@ -247,51 +239,6 @@ CommandErrors executeCommand(void){
 
 		printf( "command <%s>  E=%d  ch=%u Sig2=%c\n", NewCommand, ErrorCode, SelectedChannel+1, Sig2Value? '1':'0' );
 	}
-#if 0 // cancelled commands
-	else if (strstr(NewCommand, "ADDR") == NewCommand){ // "Set values of addresses" command
-		unsigned TemporaryAddressArgument1, TemporaryAddressArgument2, TemporaryAddressArgument3, TemporaryAddressArgument4;
-		int Result = sscanf( NewCommand, "ADDR:%X;%X;%X;%X\r\n",
-				&TemporaryAddressArgument1, &TemporaryAddressArgument2, &TemporaryAddressArgument3, &TemporaryAddressArgument4 );
-		if ((Result != 4) || (NewCommand[CommadLength-2] != '\r') || (NewCommand[CommadLength-1] != '\n')){
-			ErrorCode = COMMAND_ADDRESS_INCORRECT_FORMAT;
-		}
-		else{
-			if ((TemporaryAddressArgument1 > 0xFF) || (TemporaryAddressArgument2 > 0xFF) ||
-					(TemporaryAddressArgument3 > 0xFF) || (TemporaryAddressArgument4 > 0xFF))
-			{
-				ErrorCode = COMMAND_ADDRESS_INCORRECT_VALUE;
-			}
-			else{
-				// essential action
-				assert( NUMBER_OF_POWER_SUPPLIES == 4 );
-				AddressTable[0] = (uint8_t)TemporaryAddressArgument1;
-				AddressTable[1] = (uint8_t)TemporaryAddressArgument2;
-				AddressTable[2] = (uint8_t)TemporaryAddressArgument3;
-				AddressTable[3] = (uint8_t)TemporaryAddressArgument4;
-
-				transmitViaSerialPort(">");
-			}
-		}
-
-		printf( "command <%s>  E=%d  Arg:%02X;%02X;%02X;%02X\n", NewCommand, ErrorCode,
-				TemporaryAddressArgument1, TemporaryAddressArgument2, TemporaryAddressArgument3, TemporaryAddressArgument4 );
-	}
-	else if (strstr(NewCommand, "?ADDR") == NewCommand){ // "Get values of addresses" command
-		if ((NewCommand[CommadLength-2] != '\r') || (NewCommand[CommadLength-1] != '\n')){
-			ErrorCode = COMMAND__ADDRESS_INCORRECT_FORMAT;
-		}
-		else{
-			// essential action
-			assert( NUMBER_OF_POWER_SUPPLIES == 4 );
-			snprintf( ResponseBuffer, COMMAND_BUFFER_LENGTH-1, "Addr:%02X;%02X;%02X;%02X\r\n>",
-					AddressTable[0], AddressTable[1], AddressTable[2], AddressTable[3] );
-			transmitViaSerialPort( ResponseBuffer );
-		}
-
-		printf( "command <%s>  E=%d %02X;%02X;%02X;%02X\n", NewCommand, ErrorCode,
-				AddressTable[0], AddressTable[1], AddressTable[2], AddressTable[3] );
-	}
-#endif
 	else{
 		ErrorCode = COMMAND_UNKNOWN;
 		printf( "command <%s>  %d\n", NewCommand, ErrorCode );

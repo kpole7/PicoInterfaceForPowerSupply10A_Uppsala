@@ -46,11 +46,6 @@
 
 #define COMMAND_BUFFER_LENGTH		(LONGEST_COMMAND_LENGTH+10)
 
-#define INITIAL_ADDRESS_1			0
-#define INITIAL_ADDRESS_2			1
-#define INITIAL_ADDRESS_3			2
-#define INITIAL_ADDRESS_4			3
-
 //---------------------------------------------------------------------------------------------------
 // Constants
 //---------------------------------------------------------------------------------------------------
@@ -95,9 +90,7 @@ extern char NewCommand[COMMAND_BUFFER_LENGTH];
 /// All commands related to power supply settings apply to this device
 extern uint8_t SelectedChannel;
 
-extern uint8_t AddressTable[NUMBER_OF_POWER_SUPPLIES];
-
-extern OrderCodes OrderCode;
+extern volatile OrderCodes OrderCode;
 
 /// @brief Setpoint value for a DAC
 extern uint16_t RequiredDacValue[NUMBER_OF_POWER_SUPPLIES];

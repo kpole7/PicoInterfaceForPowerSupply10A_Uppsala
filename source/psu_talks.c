@@ -30,7 +30,7 @@
 #define DEBUG_SAMPLES_DAC			100
 
 //---------------------------------------------------------------------------------------------------
-// Constants
+// Local constants
 //---------------------------------------------------------------------------------------------------
 
 // This definition contains a list of states of a finite state machine responsible for programming the DAC of a given PSU
@@ -66,17 +66,25 @@ static const uint16_t ConvertionPsuAddressToPcf8574[PSU_ADDRESS_BITS] = {
 		0x2000
 };
 
+// These are physical addresses of the power supply units installed in the equipment
+static const uint8_t AddressTable[NUMBER_OF_POWER_SUPPLIES] = {
+		0,
+		1,
+		2,
+		3
+	};
+
 //---------------------------------------------------------------------------------------------------
-// Variables
+// Local variables
 //---------------------------------------------------------------------------------------------------
 
 static volatile OrderCodes WorkingOrder;
 
-static uint16_t WorkingUnsignedArgument;
+static volatile uint16_t WorkingUnsignedArgument;
 
-static uint8_t StateCode;
+static volatile uint8_t StateCode;
 
-static uint8_t I2cConsecutiveErrors;
+static volatile uint8_t I2cConsecutiveErrors;
 
 #if DEBUG_DAC
 static uint16_t DebugCounter, DebugDacArgument;
