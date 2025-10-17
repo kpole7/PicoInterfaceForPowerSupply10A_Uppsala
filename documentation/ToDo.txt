@@ -1,0 +1,14 @@
+
+1. Sprawdzić (za pomocą oscyloskopu) czas twania obsługi przerwania czasowego.
+
+2. Sprawdzić obsługę błędów.
+
+3. Kiedy będzie robiona nowa płytka:
+    - zastanowić się chwilę, jakie będą etapy uruchamiania płytki;
+    - dodać ułatwienia testowania obsługi wyjątków;
+    - dodać możliwość resetowania samego RP2040, bez zakłócania pracy modułów PS10_DAN_W_89;
+
+
+
+
+
