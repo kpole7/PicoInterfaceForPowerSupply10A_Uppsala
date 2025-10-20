@@ -2,6 +2,7 @@
 
 #include <math.h>
 #include "hardware/adc.h"
+#include "pico/critical_section.h"
 #include "adc_inputs.h"
 
 
@@ -13,13 +14,18 @@
 static const float GetVoltageCoefficient = 20.0 / (ADC_RAW_BUFFER_SIZE * 4096.0);
 static const float GetVoltageOffset = 10.0;
 
+/// @brief This variable is used in timer interrupt handler
 static volatile uint16_t RawBufferAdc0[ADC_RAW_BUFFER_SIZE];
+
+/// @brief This variable is used in timer interrupt handler
 static volatile uint16_t RawBufferAdc1[ADC_RAW_BUFFER_SIZE];
 
-/// @brief Index for writing new samples from ADC0 and ADC1
+/// @brief This variable is used in timer interrupt handler
+/// Index for writing new samples from ADC0 and ADC1
 static volatile uint32_t AdcBuffersHead = 0;
 
-static volatile bool AreAdcBuffersBusy;
+/// @brief This variable is used in timer interrupt handler
+static critical_section_t AdcBuffersCriticalSection;
 
 /// @brief This function initializes peripherals for ADC measuring and the state machine for measurements
 void initializeAdcMeasurements(void){
@@ -28,15 +34,15 @@ void initializeAdcMeasurements(void){
 	adc_gpio_init(GPIO_FOR_ADC1);
 
 	AdcBuffersHead = 0;
-	AreAdcBuffersBusy = false;
+	critical_section_init( &AdcBuffersCriticalSection );
 }
 
-/// @brief This function collects measurements from ADC; it is to be called by timer interrupt
+/// @brief This function is called by timer interrupt handler
+/// This function collects measurements from ADC
 void getVoltageSamples(void){
-	if (AreAdcBuffersBusy){
-		return;			// This happens very seldom
-	}
-    // Measure ADC0
+	critical_section_enter_blocking( &AdcBuffersCriticalSection );
+
+	// Measure ADC0
     adc_select_input(0);
     (void)adc_read();                // dummy read
     RawBufferAdc0[AdcBuffersHead] = adc_read();
@@ -50,28 +56,36 @@ void getVoltageSamples(void){
     if (AdcBuffersHead >= ADC_RAW_BUFFER_SIZE){
     	AdcBuffersHead = 0;
     }
+
+    critical_section_exit( &AdcBuffersCriticalSection );
 }
 
 /// @brief This function measures the voltage at ADC input and make some calculations
 ///
 /// The function acts in the main loop
 float getVoltage( uint8_t AdcIndex ){
-	AreAdcBuffersBusy = true;
 	if (0 == AdcIndex){
+
+		critical_section_enter_blocking( &AdcBuffersCriticalSection );
 		uint32_t Accumulator = 0;
 		for (uint8_t J = 0; J < ADC_RAW_BUFFER_SIZE; J++){
 			Accumulator += RawBufferAdc0[J];
 		}
+		critical_section_exit( &AdcBuffersCriticalSection );
+
 		return (float)Accumulator * GetVoltageCoefficient - GetVoltageOffset;
 	}
 	if (1 == AdcIndex){
+
+		critical_section_enter_blocking( &AdcBuffersCriticalSection );
 		uint32_t Accumulator = 0;
 		for (uint8_t J = 0; J < ADC_RAW_BUFFER_SIZE; J++){
 			Accumulator += RawBufferAdc1[J];
 		}
+		critical_section_exit( &AdcBuffersCriticalSection );
+
 		return (float)Accumulator * GetVoltageCoefficient - GetVoltageOffset;
 	}
-	AreAdcBuffersBusy = false;
 	return NAN;
 }
 

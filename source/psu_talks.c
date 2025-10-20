@@ -9,10 +9,10 @@
 // Macro directives
 //---------------------------------------------------------------------------------------------------
 
-// The 1'st PCF8574 address (A0=A1=A2=high)
+/// The 1'st PCF8574 address (A0=A1=A2=high)
 #define PCF8574_ADDRESS_2			0x27
 
-// The 2'nd PCF8574 address (A0=high; A1=A2=low)
+/// The 2'nd PCF8574 address (A0=high; A1=A2=low)
 #define PCF8574_ADDRESS_1			0x21
 
 #define DAC_NUMBER_OF_BITS			12
@@ -26,6 +26,8 @@
 
 #define GPIO_FOR_PSU_LOGIC_FEEDBACK	12
 
+#define I2C_CONSECUTIVE_ERRORS_LIMIT 255
+
 #define DEBUG_DAC					0
 #define DEBUG_SAMPLES_DAC			100
 
@@ -33,16 +35,16 @@
 // Local constants
 //---------------------------------------------------------------------------------------------------
 
-// This definition contains a list of states of a finite state machine responsible for programming the DAC of a given PSU
-// The state machine handles communication with two PCF8574 ICs and controls the notWR signal
+/// This definition contains a list of states of a finite state machine responsible for programming the DAC of a given PSU
+/// The state machine handles communication with two PCF8574 ICs and controls the notWR signal
 typedef enum {
 	STATE_IDLE,
 	STATE_SENDING_1ST_BYTE,
 	STATE_SENDING_2ND_BYTE,
 }StatesOfPsuFsm;
 
-// This table shows what needs to be written to the PCF8574 expanders
-// to set a given bit of the digital-to-analog converter (DAC).
+/// This table shows what needs to be written to the PCF8574 expanders
+/// to set a given bit of the digital-to-analog converter (DAC).
 static const uint16_t ConvertionDacToPcf8574[DAC_NUMBER_OF_BITS] = {
 		0x0080,
 		0x0040,
@@ -78,23 +80,24 @@ static const uint8_t AddressTable[NUMBER_OF_POWER_SUPPLIES] = {
 // Local variables
 //---------------------------------------------------------------------------------------------------
 
-static volatile OrderCodes WorkingOrder;
-
-static volatile uint16_t WorkingUnsignedArgument;
-
+/// @brief This variable is used in a simple state machine
 static volatile uint8_t StateCode;
 
-static volatile uint8_t I2cConsecutiveErrors;
+/// @brief This variable is used to monitor the I2C devices
+/// @todo exception handling
+static atomic_int I2cConsecutiveErrors;
 
 //---------------------------------------------------------------------------------------------------
 // Function prototypes
 //---------------------------------------------------------------------------------------------------
 
-// @param DacRawValue binary value (12-bit) to be written to a DAC
-// @param AddressOfPsu hardware address of PSU (determined by the switch SW1)
-// @return 16-bit data to be written to the two PCF8574 integrated circuits
-//         the lower byte is to be written to PCF8574 with I2C address 0x2F
-//         the higher byte is to be written to PCF8574 with I2C address 0x21
+/// @brief This is a computational function.
+/// This function does not use variables other than its own.
+/// @param DacRawValue binary value (12-bit) to be written to a DAC
+/// @param AddressOfPsu hardware address of PSU (determined by the switch SW1)
+/// @return 16-bit data to be written to the two PCF8574 integrated circuits
+///         the lower byte is to be written to PCF8574 with I2C address PCF8574_ADDRESS_2
+///         the higher byte is to be written to PCF8574 with I2C address PCF8574_ADDRESS_1
 static uint16_t prepareDataForTwoPcf8574( uint16_t DacRawValue, uint8_t AddressOfPsu );
 
 //---------------------------------------------------------------------------------------------------
@@ -122,9 +125,8 @@ void initializePsuTalks(void){
 	gpio_set_dir(GPIO_FOR_NOT_WR_OUTPUT, GPIO_OUT);
 	gpio_put( GPIO_FOR_NOT_WR_OUTPUT, true );	// the idle state is high
 
-	WorkingOrder = ORDER_NONE;
 	StateCode = 0;
-	I2cConsecutiveErrors = 0;
+	atomic_store( &I2cConsecutiveErrors, 0 );
 
     gpio_init(GPIO_FOR_POWER_CONTACTOR);
     gpio_put(GPIO_FOR_POWER_CONTACTOR, INITIAL_MAIN_CONTACTOR_STATE);
@@ -137,40 +139,40 @@ void initializePsuTalks(void){
 
 /// @brief This function is called periodically by the time interrupt handler
 void psuTalksTimeTick(void){
+	static uint16_t WorkingUnsignedArgument;
 	bool IsI2cSuccess;
 
 	changeDebugPin1(true);
 	changeDebugPin1(false);
 	changeDebugPin2(false);
 
-	if (ORDER_NONE == WorkingOrder){
-		if ((ORDER_PCX == OrderCode) || (ORDER_PC == OrderCode)){
+	if (atomic_load( &OrderCode ) == ORDER_COMMAND_PC){
 
-			changeDebugPin2(true);
+		changeDebugPin2(true);
 
-			// take a new order
-			StateCode = 0;
-			WorkingOrder = OrderCode;
-			WorkingUnsignedArgument = prepareDataForTwoPcf8574( RequiredDacValue[SelectedChannel], AddressTable[SelectedChannel] );
-			OrderCode = ORDER_ACCEPTED;
-		}
+		// take a new order
+		StateCode = 0;
+		WorkingUnsignedArgument = prepareDataForTwoPcf8574( RequiredDacValue[SelectedChannel], AddressTable[SelectedChannel] );
+		atomic_store( &OrderCode, ORDER_PROCESSING );
 	}
-	if (ORDER_PCX == WorkingOrder){
+
+	if (atomic_load( &OrderCode ) == ORDER_PROCESSING){
 
 		switch( StateCode ){
 		case 0:
 			IsI2cSuccess = i2cWrite( PCF8574_ADDRESS_2, (uint8_t)WorkingUnsignedArgument );
 			if (IsI2cSuccess){
-				I2cConsecutiveErrors = 0;
+				atomic_store( &I2cConsecutiveErrors, 0 );
 				StateCode++;
 			}
 			else{
-				if (I2cConsecutiveErrors < 255){
-					I2cConsecutiveErrors++;
+				// Exception handling
+				if (atomic_load( &I2cConsecutiveErrors ) < I2C_CONSECUTIVE_ERRORS_LIMIT){
+					atomic_fetch_add( &I2cConsecutiveErrors, 1 );
 				}
 				else{
 					StateCode = 0;
-					WorkingOrder = ORDER_NONE;
+					atomic_store( &OrderCode, ORDER_COMPLETED );
 				}
 			}
 			break;
@@ -178,16 +180,17 @@ void psuTalksTimeTick(void){
 		case 1:
 			IsI2cSuccess = i2cWrite( PCF8574_ADDRESS_1, (uint8_t)(WorkingUnsignedArgument >> 8) );
 			if (IsI2cSuccess){
-				I2cConsecutiveErrors = 0;
+				atomic_store( &I2cConsecutiveErrors, 0 );
 				StateCode++;
 			}
 			else{
-				if (I2cConsecutiveErrors < 255){
-					I2cConsecutiveErrors++;
+				// Exception handling
+				if (I2cConsecutiveErrors < I2C_CONSECUTIVE_ERRORS_LIMIT){
+					atomic_fetch_add( &I2cConsecutiveErrors, 1 );
 				}
 				else{
 					StateCode = 0;
-					WorkingOrder = ORDER_NONE;
+					atomic_store( &OrderCode, ORDER_COMPLETED );
 				}
 			}
 			break;
@@ -202,7 +205,7 @@ void psuTalksTimeTick(void){
 			gpio_put( GPIO_FOR_NOT_WR_OUTPUT, true );
 
 			StateCode = 0;
-			WorkingOrder = ORDER_NONE;
+			atomic_store( &OrderCode, ORDER_COMPLETED );
 			break;
 
 		default:

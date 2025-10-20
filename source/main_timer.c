@@ -28,6 +28,8 @@
 //---------------------------------------------------------------------------------------------------
 
 /// @brief This is timer interrupt handler for slow cyclic events
+/// @callgraph
+/// @callergraph
 static int64_t timerInterruptCallback(alarm_id_t id, void *user_data);
 
 //---------------------------------------------------------------------------------------------------
@@ -39,6 +41,9 @@ void startPeriodicInterrupt(void){
 	add_alarm_in_us(TIMER_INTERRUPT_INTERVAL_US, timerInterruptCallback, NULL, true);
 }
 
+/// @brief This is timer interrupt handler for slow cyclic events
+/// @callgraph
+/// @callergraph
 static int64_t timerInterruptCallback(alarm_id_t id, void *user_data){
 	// Analog-to-digital converter operation
 	static uint8_t TimeCounterAdc;

@@ -40,12 +40,29 @@ static_assert( LONGEST_RESPONSE_LENGTH < UART_OUTPUT_BUFFER_SIZE, "static_assert
 // Local variables
 //---------------------------------------------------------------------------------------------------
 
-static char UartInputBuffer[UART_INPUT_BUFFER_SIZE];
-static volatile uint8_t UartInputHead, UartInputTail;
+/// @brief This variable is used in UART interrupt handler
+static volatile char UartInputBuffer[UART_INPUT_BUFFER_SIZE];
+
+/// @brief This variable is used in UART interrupt handler
+static volatile uint8_t UartInputHead;
+
+/// @brief This variable is used in UART interrupt handler
+static volatile uint8_t UartInputTail;
+
+/// @brief This variable is used in UART interrupt handler
 static volatile uint64_t WhenReceivedLastByte;
 
-static char UartOutputBuffer[UART_OUTPUT_BUFFER_SIZE];
-static volatile uint8_t UartOutputHead, UartOutputTail;
+/// @brief This variable is used in UART interrupt handler
+static volatile char UartOutputBuffer[UART_OUTPUT_BUFFER_SIZE];
+
+/// @brief This variable is used in UART interrupt handler
+static volatile uint8_t UartOutputHead;
+
+/// @brief This variable is used in UART interrupt handler
+static volatile uint8_t UartOutputTail;
+
+/// @brief This variable is used in UART interrupt handler
+/// @todo exception handling
 static volatile uint8_t UartError;
 
 //---------------------------------------------------------------------------------------------------
@@ -54,7 +71,9 @@ static volatile uint8_t UartError;
 
 static bool is_tx_irq_enabled(uart_inst_t *uart);
 
-/// @brief This is an interrupt handler for receiving and transmitting via UART
+/// @brief This is an interrupt handler (callback function) for receiving and transmitting via UART
+/// @callgraph
+/// @callergraph
 static void serialPortInterruptHandler( void );
 
 static inline void increaseModulo( volatile uint8_t * ArgumentPtr, const uint8_t Divisor );

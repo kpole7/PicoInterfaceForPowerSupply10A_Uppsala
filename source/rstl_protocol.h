@@ -36,6 +36,7 @@
 #ifndef SOURCE_RSTL_PROTOCOL_H_
 #define SOURCE_RSTL_PROTOCOL_H_
 
+#include <stdatomic.h>
 #include "uart_talks.h"
 
 //---------------------------------------------------------------------------------------------------
@@ -46,16 +47,14 @@
 
 #define COMMAND_BUFFER_LENGTH		(LONGEST_COMMAND_LENGTH+10)
 
+#define ORDER_NONE					0
+#define ORDER_PROCESSING			1
+#define ORDER_COMPLETED				2
+#define ORDER_COMMAND_PC			3
+
 //---------------------------------------------------------------------------------------------------
 // Constants
 //---------------------------------------------------------------------------------------------------
-
-typedef enum OrderCodesEnum{
-	ORDER_NONE		= 0,
-	ORDER_ACCEPTED	= 1,
-	ORDER_PCX		= 2,
-	ORDER_PC		= 3,
-} OrderCodes;
 
 typedef enum CommandErrorsEnum{
 	COMMAND_GOOD					= 0,
@@ -76,6 +75,7 @@ typedef enum CommandErrorsEnum{
 	COMMAND_ADDRESS_INCORRECT_VALUE	= 15,
 	COMMAND__ADDRESS_INCORRECT_FORMAT= 16,
 	COMMAND__PC_INCORRECT_FORMAT	= 17,
+	COMMAND_I2C_ERROR				= 18,
 } CommandErrors;
 
 //---------------------------------------------------------------------------------------------------
@@ -88,12 +88,12 @@ extern char NewCommand[COMMAND_BUFFER_LENGTH];
 
 /// @brief Currently selected (active) power supply unit
 /// All commands related to power supply settings apply to this device
-extern uint8_t SelectedChannel;
+extern atomic_int SelectedChannel;
 
-extern volatile OrderCodes OrderCode;
+extern atomic_int OrderCode;
 
 /// @brief Setpoint value for a DAC
-extern uint16_t RequiredDacValue[NUMBER_OF_POWER_SUPPLIES];
+extern volatile uint16_t RequiredDacValue[NUMBER_OF_POWER_SUPPLIES];
 
 //---------------------------------------------------------------------------------------------------
 // Function prototypes
@@ -101,6 +101,8 @@ extern uint16_t RequiredDacValue[NUMBER_OF_POWER_SUPPLIES];
 
 /// @brief This function initializes GPIO controlling the the power contactor and initializes variables of this module
 void initializeRstlProtocol(void);
+
+void driveUserInterface(void);
 
 /// @brief This function executes the command stored in NewCommand buffer
 /// @return value from enum CommandErrors

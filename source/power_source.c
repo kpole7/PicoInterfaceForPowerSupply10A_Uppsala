@@ -68,7 +68,7 @@ int main() {
 
     while (true) {
         // main loop
-    	serialPortReceiver();
+    	driveUserInterface();
 
 #if 0 // debugging
     	int8_t Temporary = getEventPushButtonChange();

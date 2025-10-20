@@ -24,6 +24,7 @@ void initializeI2cOutputs(void){
 }
 
 /// @brief This function writes one byte of data to the PCF8574 IC.
+/// This function does not use variables other than its own.
 /// @param I2cAddress the hardware address of one of the two PCF8574 ICs
 /// @param Value data to be stored in the PCF8574
 /// @return true on success
