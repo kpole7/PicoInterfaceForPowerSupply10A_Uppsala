@@ -24,7 +24,9 @@
 void serialPortInitialization(void);
 
 /// @brief This function drives the state machine that receives frames via serial port
-void serialPortReceiver(void);
+/// @return true if a new command has been received via UART
+/// @return false if there is no new command
+bool serialPortReceiver(void);
 
 /// @brief This function starts sending the data stored in UartOutputBuffer
 /// The function copies the data from UartOutputBuffer to FIFO input buffer of UART

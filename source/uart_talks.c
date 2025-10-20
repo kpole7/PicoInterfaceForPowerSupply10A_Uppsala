@@ -108,7 +108,9 @@ void serialPortInitialization(void){
 }
 
 /// @brief This function drives the state machine that receives frames via serial port
-void serialPortReceiver(void){
+/// @return true if a new command has been received via UART
+/// @return false if there is no new command
+bool serialPortReceiver(void){
 	if (UartInputHead != UartInputTail){
 		// The input buffer is not empty
 
@@ -135,10 +137,11 @@ void serialPortReceiver(void){
 				}
 				NewCommand[Index] = 0;
 
-				executeCommand();
+				return true;
 			}
 		}
 	}
+	return false;
 }
 
 static void serialPortInterruptHandler( void ){

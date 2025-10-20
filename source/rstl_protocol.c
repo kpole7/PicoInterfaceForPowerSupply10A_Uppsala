@@ -34,6 +34,8 @@ char NewCommand[COMMAND_BUFFER_LENGTH];
 /// All commands related to power supply settings apply to this device
 atomic_int SelectedChannel;
 
+/// @brief This is a code of an action that cannot be executed immediately but must be processed by a state machine
+/// The variable can be modified in the main loop and in the timer interrupt handler
 atomic_int OrderCode;
 
 /// @brief Setpoint value for a DAC
@@ -64,14 +66,16 @@ void initializeRstlProtocol(void){
 	IsMainContactorStateOn = INITIAL_MAIN_CONTACTOR_STATE;
 }
 
-
+/// @brief This function is called in the main loop
 void driveUserInterface(void){
 	if (atomic_load( &OrderCode ) == ORDER_COMPLETED){
 		atomic_store( &OrderCode, ORDER_NONE );
 	}
-	serialPortReceiver();
+	bool NewCommandIsReady = serialPortReceiver();
+	if (NewCommandIsReady){
+		executeCommand();
+	}
 }
-
 
 /// @brief This function executes the command stored in NewCommand buffer
 /// @return value from enum CommandErrors

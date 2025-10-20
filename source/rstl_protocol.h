@@ -90,6 +90,8 @@ extern char NewCommand[COMMAND_BUFFER_LENGTH];
 /// All commands related to power supply settings apply to this device
 extern atomic_int SelectedChannel;
 
+/// @brief This is a code of an action that cannot be executed immediately but must be processed by a state machine
+/// The variable can be modified in the main loop and in the timer interrupt handler
 extern atomic_int OrderCode;
 
 /// @brief Setpoint value for a DAC
