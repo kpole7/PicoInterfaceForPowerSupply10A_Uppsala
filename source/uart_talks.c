@@ -7,6 +7,7 @@
 #include "hardware/regs/uart.h"
 #include "hardware/irq.h"
 #include "hardware/gpio.h"
+#include "pico/critical_section.h"
 
 #include "uart_talks.h"
 #include "rstl_protocol.h"
@@ -65,16 +66,23 @@ static volatile uint8_t UartOutputTail;
 /// @todo exception handling
 static volatile uint8_t UartError;
 
+/// @brief This variable is used in UART interrupt handler
+static critical_section_t UartBuffersCriticalSection;
+
 //---------------------------------------------------------------------------------------------------
 // Local function prototypes
 //---------------------------------------------------------------------------------------------------
 
-static bool is_tx_irq_enabled(uart_inst_t *uart);
+/// @brief This function performs all the functionalities of the global function transmitViaSerialPort() except for critical_section.
+static int8_t transmitInternals( const char* TextToBeSent );
 
 /// @brief This is an interrupt handler (callback function) for receiving and transmitting via UART
 /// @callgraph
 /// @callergraph
 static void serialPortInterruptHandler( void );
+
+/// Function that checks whether TX IRQ is enabled
+static bool is_tx_irq_enabled(uart_inst_t *uart);
 
 static inline void increaseModulo( volatile uint8_t * ArgumentPtr, const uint8_t Divisor );
 
@@ -82,14 +90,15 @@ static inline void increaseModulo( volatile uint8_t * ArgumentPtr, const uint8_t
 // Function definitions
 //---------------------------------------------------------------------------------------------------
 
-// Function that checks whether TX IRQ is enabled
-static bool is_tx_irq_enabled(uart_inst_t *uart) {
-	return (uart_get_hw(uart)->imsc & UART_UARTIMSC_TXIM_BITS) != 0;
-}
-
 /// @brief This function initializes hardware port (UART) and initializes state machines for serial communication
 void serialPortInitialization(void){
-    uart_init(UART_ID, UART_BAUD_RATE);
+    UartInputHead = 0;
+	UartInputTail = 0;
+	UartError = 0;
+	WhenReceivedLastByte = (uint64_t)0;
+	critical_section_init( &UartBuffersCriticalSection );
+
+	uart_init(UART_ID, UART_BAUD_RATE);
     gpio_set_function(GPIO_FOR_UART_TX, UART_FUNCSEL_NUM(UART_ID, GPIO_FOR_UART_TX));
     gpio_set_function(GPIO_FOR_UART_RX, UART_FUNCSEL_NUM(UART_ID, GPIO_FOR_UART_RX));
     uart_set_baudrate( UART_ID, UART_BAUD_RATE );
@@ -100,17 +109,16 @@ void serialPortInitialization(void){
 	irq_set_exclusive_handler(UART_IRQ, serialPortInterruptHandler);
     irq_set_enabled(UART_IRQ, true);
     uart_set_irq_enables( UART_ID, true, false );
-
-    UartInputHead = 0;
-	UartInputTail = 0;
-	UartError = 0;
-	WhenReceivedLastByte = (uint64_t)0;
 }
 
 /// @brief This function drives the state machine that receives frames via serial port
 /// @return true if a new command has been received via UART
 /// @return false if there is no new command
 bool serialPortReceiver(void){
+	bool Result = false;
+
+	critical_section_enter_blocking( &UartBuffersCriticalSection );
+
 	if (UartInputHead != UartInputTail){
 		// The input buffer is not empty
 
@@ -137,53 +145,14 @@ bool serialPortReceiver(void){
 				}
 				NewCommand[Index] = 0;
 
-				return true;
+				Result = true;
 			}
 		}
 	}
-	return false;
-}
 
-static void serialPortInterruptHandler( void ){
-	if (uart_is_readable(UART_ID)){
-		char IncomingCharacter = uart_getc(UART_ID);
-		UartInputBuffer[UartInputHead] = IncomingCharacter;
-		increaseModulo( &UartInputHead, UART_INPUT_BUFFER_SIZE);
-		if (UartInputHead == UartInputTail){
-			// the buffer is overflowing; the oldest data is overwritten
-			increaseModulo( &UartInputTail, UART_INPUT_BUFFER_SIZE);
-		}
-		WhenReceivedLastByte = time_us_64(); // to check how long the silence lasts in the incoming transmission
-		// Check if there is any outgoing transmission
-		if (is_tx_irq_enabled(UART_ID) || !uart_is_writable( UART_ID ) || (UartOutputHead != UartOutputTail)){
-			// cancel outgoing buffered transmission
-   	   		uart_set_irq_enables( UART_ID, true, false );
-   	   		UartOutputHead = 0;
-   	   		UartOutputTail = 0;
-   	   		UartError |= UART_WARNING_INCOMING_WHILE_OUTGOING;
-		}
-		if (uart_is_writable( UART_ID )){
-			uart_putc_raw( UART_ID, IncomingCharacter ); // send echo
-		}
-	}
-	else{
-	   	if ((UartOutputHead < UART_OUTPUT_BUFFER_SIZE) &&
-	   			(UartOutputTail < UART_OUTPUT_BUFFER_SIZE)) // protection just in case
-	   	{
-	   	   	if((UartOutputTail != UartOutputHead) && uart_is_writable( UART_ID )){
-	   	   		uart_putc_raw( UART_ID, UartOutputBuffer[UartOutputTail] ); // uart_putc is not good due to its CRLF support
-	   	   		increaseModulo( &UartOutputTail, UART_OUTPUT_BUFFER_SIZE);
-	   	   	}
-	   	   	if (UartOutputTail == UartOutputHead){
-	   	   		uart_set_irq_enables( UART_ID, true, false );	// there is nothing more to send so stop interrupts from the sender
-	   	   	}
-	   	}
-	   	else{
-	   		while(1){
-	   			; // intentionally hang the program
-	   		}
-	   	}
-	}
+	critical_section_exit( &UartBuffersCriticalSection );
+
+	return Result;
 }
 
 /// @brief This function starts sending the data stored in UartOutputBuffer
@@ -192,6 +161,16 @@ static void serialPortInterruptHandler( void ){
 /// @return 0 on success
 /// @return -1 on failure
 int8_t transmitViaSerialPort( const char* TextToBeSent ){
+	int8_t Result;
+	critical_section_enter_blocking( &UartBuffersCriticalSection );
+
+	Result = transmitInternals( TextToBeSent );
+
+	critical_section_exit( &UartBuffersCriticalSection );
+	return Result;
+}
+
+static int8_t transmitInternals( const char* TextToBeSent ){
 	if (NULL == TextToBeSent){
 		return -1; // improper value of the argument
 	}
@@ -232,9 +211,6 @@ int8_t transmitViaSerialPort( const char* TextToBeSent ){
 		// write data to UART
 		uart_putc_raw( UART_ID, UartOutputBuffer[UartOutputTail] ); // uart_putc is not good due to its CRLF support
 		increaseModulo( &UartOutputTail, UART_OUTPUT_BUFFER_SIZE);
-#if 0
-		printf(">>> putc >>> %d  %d  %d\n", (int)UartOutputHead, (int)UartOutputTail, (int)Index );
-#endif
 	}
 	uart_set_irq_enables( UART_ID, true, true );	// the next bytes will be sent in the interrupt handler
 
@@ -243,6 +219,56 @@ int8_t transmitViaSerialPort( const char* TextToBeSent ){
 	}
 
 	return 0;
+}
+
+static void serialPortInterruptHandler( void ){
+	critical_section_enter_blocking( &UartBuffersCriticalSection );
+
+	if (uart_is_readable(UART_ID)){
+		char IncomingCharacter = uart_getc(UART_ID);
+		UartInputBuffer[UartInputHead] = IncomingCharacter;
+		increaseModulo( &UartInputHead, UART_INPUT_BUFFER_SIZE);
+		if (UartInputHead == UartInputTail){
+			// the buffer is overflowing; the oldest data is overwritten
+			increaseModulo( &UartInputTail, UART_INPUT_BUFFER_SIZE);
+		}
+		if (uart_is_writable( UART_ID )){
+			uart_putc_raw( UART_ID, IncomingCharacter ); // send echo
+		}
+		WhenReceivedLastByte = time_us_64(); // to check how long the silence lasts in the incoming transmission
+		// Check if there is any outgoing transmission
+		if (is_tx_irq_enabled(UART_ID) || !uart_is_writable( UART_ID ) || (UartOutputHead != UartOutputTail)){
+			// cancel outgoing buffered transmission
+   	   		uart_set_irq_enables( UART_ID, true, false );
+   	   		UartOutputHead = 0;
+   	   		UartOutputTail = 0;
+   	   		UartError |= UART_WARNING_INCOMING_WHILE_OUTGOING;
+		}
+	}
+	else{
+	   	if ((UartOutputHead < UART_OUTPUT_BUFFER_SIZE) &&
+	   			(UartOutputTail < UART_OUTPUT_BUFFER_SIZE)) // protection just in case
+	   	{
+	   	   	if((UartOutputTail != UartOutputHead) && uart_is_writable( UART_ID )){
+	   	   		uart_putc_raw( UART_ID, UartOutputBuffer[UartOutputTail] ); // uart_putc is not good due to its CRLF support
+	   	   		increaseModulo( &UartOutputTail, UART_OUTPUT_BUFFER_SIZE);
+	   	   	}
+	   	   	if (UartOutputTail == UartOutputHead){
+	   	   		uart_set_irq_enables( UART_ID, true, false );	// there is nothing more to send so stop interrupts from the sender
+	   	   	}
+	   	}
+	   	else{
+	   		while(1){
+	   			; // intentionally hang the program
+	   		}
+	   	}
+	}
+
+	critical_section_exit( &UartBuffersCriticalSection );
+}
+
+static bool is_tx_irq_enabled(uart_inst_t *uart) {
+	return (uart_get_hw(uart)->imsc & UART_UARTIMSC_TXIM_BITS) != 0;
 }
 
 static inline void increaseModulo( volatile uint8_t * ArgumentPtr, const uint8_t Divisor ){

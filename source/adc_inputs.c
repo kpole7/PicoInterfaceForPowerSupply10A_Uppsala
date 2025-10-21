@@ -29,12 +29,12 @@ static critical_section_t AdcBuffersCriticalSection;
 
 /// @brief This function initializes peripherals for ADC measuring and the state machine for measurements
 void initializeAdcMeasurements(void){
+	AdcBuffersHead = 0;
+	critical_section_init( &AdcBuffersCriticalSection );
+
 	adc_init();
 	adc_gpio_init(GPIO_FOR_ADC0);
 	adc_gpio_init(GPIO_FOR_ADC1);
-
-	AdcBuffersHead = 0;
-	critical_section_init( &AdcBuffersCriticalSection );
 }
 
 /// @brief This function is called by timer interrupt handler
