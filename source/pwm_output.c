@@ -6,11 +6,19 @@
 
 #include "pwm_output.h"
 
+//---------------------------------------------------------------------------------------------------
+// Macro directives
+//---------------------------------------------------------------------------------------------------
+
 /// @brief The port GPIO6 is used as a PWM output
 #define GPIO_FOR_PWM 	6
 
 /// @brief The PWM output frequency is 40kHz
 #define PWM_FREQ 		40000
+
+//---------------------------------------------------------------------------------------------------
+// Function definitions
+//---------------------------------------------------------------------------------------------------
 
 /// @brief This function configures the pin as a pulse generator using hardware PWM
 void initializePwm(void){

@@ -21,6 +21,10 @@ typedef struct {
     atomic_uint_fast32_t tail;       // consumer index (next read position)
 } ring_spsc_t;
 
+//---------------------------------------------------------------------------------------------------
+// Function definitions
+//---------------------------------------------------------------------------------------------------
+
 /// @brief Initialize ring buffer structure.
 /// buffer_storage must point to an array of length 'size' and size must be power-of-two.
 static inline void ringSpscInit(ring_spsc_t *RingPtr, uint8_t *BufferStoragePtr, size_t Size){

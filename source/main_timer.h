@@ -4,6 +4,10 @@
 #ifndef SOURCE_MAIN_TIMER_H_
 #define SOURCE_MAIN_TIMER_H_
 
+//---------------------------------------------------------------------------------------------------
+// Function prototypes
+//---------------------------------------------------------------------------------------------------
+
 /// @brief This function initializes the timer interrupt
 void startPeriodicInterrupt(void);
 

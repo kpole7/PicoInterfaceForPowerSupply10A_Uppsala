@@ -4,14 +4,24 @@
 #include "hardware/adc.h"
 #include "adc_inputs.h"
 
+//---------------------------------------------------------------------------------------------------
+// Macro directives
+//---------------------------------------------------------------------------------------------------
 
 #define ADC_RAW_BUFFER_SIZE 	64
 #define GPIO_FOR_ADC0			26
 #define GPIO_FOR_ADC1			27
 
+//---------------------------------------------------------------------------------------------------
+// Local constants
+//---------------------------------------------------------------------------------------------------
 
 static const float GetVoltageCoefficient = 20.0 / (ADC_RAW_BUFFER_SIZE * 4096.0);
 static const float GetVoltageOffset = 10.0;
+
+//---------------------------------------------------------------------------------------------------
+// Local variables
+//---------------------------------------------------------------------------------------------------
 
 /// @brief This variable is used in timer interrupt handler
 static uint16_t RawBufferAdc0[ADC_RAW_BUFFER_SIZE];
@@ -23,6 +33,9 @@ static uint16_t RawBufferAdc1[ADC_RAW_BUFFER_SIZE];
 /// Index for writing new samples from ADC0 and ADC1
 static volatile uint32_t AdcBuffersHead = 0;
 
+//---------------------------------------------------------------------------------------------------
+// Function definitions
+//---------------------------------------------------------------------------------------------------
 
 /// @brief This function initializes peripherals for ADC measuring and the state machine for measurements
 void initializeAdcMeasurements(void){

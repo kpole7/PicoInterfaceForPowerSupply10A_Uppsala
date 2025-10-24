@@ -6,6 +6,10 @@
 
 #include "pico/stdlib.h"
 
+//---------------------------------------------------------------------------------------------------
+// Function prototypes
+//---------------------------------------------------------------------------------------------------
+
 /// @brief This function initializes peripherals for ADC measuring and the state machine for measurements
 void initializeAdcMeasurements(void);
 
