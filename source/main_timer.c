@@ -1,4 +1,4 @@
-// main_timer.c
+/// @file main_timer.c
 
 #include "pico/stdlib.h"
 
@@ -27,18 +27,21 @@
 // Function prototypes
 //---------------------------------------------------------------------------------------------------
 
-/// @brief This is timer interrupt handler for slow cyclic events
-int64_t timerInterruptCallback(alarm_id_t id, void *user_data);
+/// @brief This is timer interrupt handler (callback function) for slow cyclic events
+/// @callgraph
+/// @callergraph
+static int64_t timerInterruptHandler(alarm_id_t id, void *user_data);
 
 //---------------------------------------------------------------------------------------------------
 // Function definitions
 //---------------------------------------------------------------------------------------------------
 
+/// @brief This function initializes the timer interrupt
 void startPeriodicInterrupt(void){
-	add_alarm_in_us(TIMER_INTERRUPT_INTERVAL_US, timerInterruptCallback, NULL, true);
+	add_alarm_in_us(TIMER_INTERRUPT_INTERVAL_US, timerInterruptHandler, NULL, true);
 }
 
-int64_t timerInterruptCallback(alarm_id_t id, void *user_data){
+static int64_t timerInterruptHandler(alarm_id_t id, void *user_data){
 	// Analog-to-digital converter operation
 	static uint8_t TimeCounterAdc;
 	TimeCounterAdc++;

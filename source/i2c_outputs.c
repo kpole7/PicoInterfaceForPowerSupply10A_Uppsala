@@ -1,4 +1,4 @@
-// i2c_outputs.c
+/// @file i2c_outputs.c
 
 #include "hardware/i2c.h"
 
@@ -16,12 +16,19 @@
 // Function definitions
 //---------------------------------------------------------------------------------------------------
 
+/// @brief This function initializes I2C port used to communicate with PCF8574
 void initializeI2cOutputs(void){
     i2c_init(I2C_PORT, 50 * 1000); // 50 kHz
     gpio_set_function(GPIO_FOR_SDA, GPIO_FUNC_I2C);
     gpio_set_function(GPIO_FOR_SCL, GPIO_FUNC_I2C);
 }
 
+/// @brief This function writes one byte of data to the PCF8574 IC.
+/// This function does not use variables other than its own.
+/// @param I2cAddress the hardware address of one of the two PCF8574 ICs
+/// @param Value data to be stored in the PCF8574
+/// @return true on success
+/// @return false on failure
 bool i2cWrite( uint8_t I2cAddress, uint8_t Value) {
 	int Result = i2c_write_timeout_us( I2C_PORT, I2cAddress, &Value, 1, false, 1000 ); // Timeout 1000us for PCF8574 working with I2C at 50kHz
 	if (1 == Result){

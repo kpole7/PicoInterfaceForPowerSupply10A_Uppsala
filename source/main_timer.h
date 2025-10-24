@@ -1,4 +1,3 @@
-// main_timer.h
 /// @file main_timer.h
 /// @brief This module implements clock timing for real-time processes
 

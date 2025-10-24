@@ -1,4 +1,3 @@
-// adc_inputs.h
 /// @file adc_inputs.h
 /// @brief This module measures input voltages on ADC0 and ADC1
 

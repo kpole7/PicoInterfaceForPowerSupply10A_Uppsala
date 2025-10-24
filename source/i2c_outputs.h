@@ -1,4 +1,3 @@
-// i2c_outputs.h
 /// @file i2c_outputs.h
 /// @brief This module implements the lower layer of communication with two PCF8574 via I2C (outgoing transmission is used only)
 

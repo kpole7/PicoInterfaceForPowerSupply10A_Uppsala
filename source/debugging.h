@@ -1,4 +1,3 @@
-// debugging.h
 /// @file debugging.h
 /// @brief This module provides some auxiliaries for debugging
 

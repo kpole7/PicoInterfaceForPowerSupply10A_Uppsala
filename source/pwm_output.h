@@ -1,4 +1,3 @@
-// pwm_output.h
 /// @file pwm_output.h
 /// @brief This module implements a pulse generator using PWM
 

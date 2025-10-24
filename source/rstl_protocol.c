@@ -1,10 +1,11 @@
-// rstl_protocol.c
+/// @file rstl_protocol.c
 
 #include <stdio.h>
 #include <string.h>
 #include <math.h>
 #include "pico/stdlib.h"
 #include "rstl_protocol.h"
+#include "uart_talks.h"
 #include "psu_talks.h"
 #include "adc_inputs.h"
 
@@ -25,45 +26,60 @@
 // Global variables
 //---------------------------------------------------------------------------------------------------
 
+/// @brief This buffer is used to pass data from UART
+/// This buffer is filled by the uart_talks module and is interpreted by the rstl_protocol module
 char NewCommand[COMMAND_BUFFER_LENGTH];
 
-uint8_t SelectedChannel;
+/// @brief Currently selected (active) power supply unit
+/// All commands related to power supply settings apply to this device
+atomic_int SelectedChannel;
 
-uint8_t AddressTable[NUMBER_OF_POWER_SUPPLIES];
+/// @brief This is a code of an action that cannot be executed immediately but must be processed by a state machine
+/// The variable can be modified in the main loop and in the timer interrupt handler
+atomic_int OrderCode;
 
-OrderCodes OrderCode;
-
-uint16_t RequiredDacValue[NUMBER_OF_POWER_SUPPLIES];
-float RequiredAmperesValue[NUMBER_OF_POWER_SUPPLIES];
+/// @brief Setpoint value for a DAC
+volatile uint16_t RequiredDacValue[NUMBER_OF_POWER_SUPPLIES];
 
 //---------------------------------------------------------------------------------------------------
 // Local variables
 //---------------------------------------------------------------------------------------------------
 
 /// @brief The state of the power contactor: true=power on; false=power off
-bool IsMainContactorStateOn;
+static bool IsMainContactorStateOn;
+
+static float RequiredAmperesValue[NUMBER_OF_POWER_SUPPLIES];
 
 //---------------------------------------------------------------------------------------------------
 // Function definitions
 //---------------------------------------------------------------------------------------------------
 
+/// @brief This function initializes GPIO controlling the the power contactor and initializes variables of this module
 void initializeRstlProtocol(void){
-	SelectedChannel = 0;
+	atomic_store_explicit( &SelectedChannel, 0, memory_order_release );
 	for (uint8_t J = 0; J < NUMBER_OF_POWER_SUPPLIES; J++){
 		RequiredDacValue[J] = INITIAL_DAC_VALUE;
 		RequiredAmperesValue[J] = 0.0;
 	}
-	OrderCode = ORDER_NONE;
+	atomic_store_explicit( &OrderCode, ORDER_NONE, memory_order_release );
 
 	IsMainContactorStateOn = INITIAL_MAIN_CONTACTOR_STATE;
-
-	assert( NUMBER_OF_POWER_SUPPLIES == 4 );
-	AddressTable[0] = INITIAL_ADDRESS_1;
-	AddressTable[1] = INITIAL_ADDRESS_2;
-	AddressTable[2] = INITIAL_ADDRESS_3;
-	AddressTable[3] = INITIAL_ADDRESS_4;
 }
 
+/// @brief This function is called in the main loop
+void driveUserInterface(void){
+	if (atomic_load_explicit( &OrderCode, memory_order_acquire ) == ORDER_COMPLETED){
+		atomic_store_explicit( &OrderCode, ORDER_NONE, memory_order_release );
+	}
+	bool NewCommandIsReady = serialPortReceiver();
+	if (NewCommandIsReady){
+		executeCommand();
+	}
+}
+
+/// @brief This function executes the command stored in NewCommand buffer
+/// @return value from enum CommandErrors
+/// @todo exception handling
 CommandErrors executeCommand(void){
 	char ResponseBuffer[LONGEST_RESPONSE_LENGTH];
 	CommandErrors ErrorCode = COMMAND_GOOD;
@@ -80,17 +96,23 @@ CommandErrors executeCommand(void){
 			ErrorCode = COMMAND_PCX_INCORRECT_FORMAT;
 		}
 		else{
-			// essential action
-			if (SelectedChannel < NUMBER_OF_POWER_SUPPLIES){
-				RequiredDacValue[SelectedChannel] = (uint16_t)DacValue;
-				RequiredAmperesValue[SelectedChannel] = (float)DacValue;
-				RequiredAmperesValue[SelectedChannel] -= (float)OFFSET_IN_DAC_UNITS;
-				RequiredAmperesValue[SelectedChannel] *= DAC_TO_AMPERES_COEFFICIENT;
+			if (atomic_load_explicit( &OrderCode, memory_order_acquire ) == ORDER_NONE){
+				// essential action
+				if (atomic_load_explicit(&SelectedChannel, memory_order_acquire) < NUMBER_OF_POWER_SUPPLIES){
+					RequiredDacValue[atomic_load_explicit(&SelectedChannel, memory_order_acquire)] = (uint16_t)DacValue;
+					RequiredAmperesValue[atomic_load_explicit(&SelectedChannel, memory_order_acquire)] = (float)DacValue;
+					RequiredAmperesValue[atomic_load_explicit(&SelectedChannel, memory_order_acquire)] -= (float)OFFSET_IN_DAC_UNITS;
+					RequiredAmperesValue[atomic_load_explicit(&SelectedChannel, memory_order_acquire)] *= DAC_TO_AMPERES_COEFFICIENT;
+				}
+				atomic_store_explicit( &OrderCode, ORDER_COMMAND_PC, memory_order_release );
+				transmitViaSerialPort(">");
 			}
-			OrderCode = ORDER_PCX;
-			transmitViaSerialPort(">");
+			else{
+				ErrorCode = COMMAND_I2C_ERROR;
+			}
 		}
-		printf( "command <%s> E=%d ch=%d %04X\n", NewCommand, ErrorCode, SelectedChannel, DacValue );
+		printf( "command <%s> E=%d ch=%u %04X\n", NewCommand, ErrorCode,
+				(unsigned)atomic_load_explicit(&SelectedChannel, memory_order_acquire)+1, DacValue );
 	}
 	else if (strstr(NewCommand, "PC") == NewCommand){ // "Program current" command
 		float CommandFloatingPointArgument = NAN;
@@ -104,21 +126,26 @@ CommandErrors executeCommand(void){
 				ErrorCode = COMMAND_PC_INCORRECT_VALUE;
 			}
 			else{
-				// essential action
-				ValueInDacUnits = (int16_t)round(CommandFloatingPointArgument * AMPERES_TO_DAC_COEFFICIENT);
-				ValueInDacUnits += OFFSET_IN_DAC_UNITS;
-				if (ValueInDacUnits < 0){
-					ValueInDacUnits = 0;
+				if (atomic_load_explicit( &OrderCode, memory_order_acquire ) == ORDER_NONE){
+					// essential action
+					ValueInDacUnits = (int16_t)round(CommandFloatingPointArgument * AMPERES_TO_DAC_COEFFICIENT);
+					ValueInDacUnits += OFFSET_IN_DAC_UNITS;
+					if (ValueInDacUnits < 0){
+						ValueInDacUnits = 0;
+					}
+					if (FULL_SCALE_IN_DAC_UNITS < ValueInDacUnits){
+						ValueInDacUnits = FULL_SCALE_IN_DAC_UNITS;
+					}
+					if (atomic_load_explicit(&SelectedChannel, memory_order_acquire) < NUMBER_OF_POWER_SUPPLIES){
+						RequiredDacValue[atomic_load_explicit(&SelectedChannel, memory_order_acquire)] = (uint16_t)ValueInDacUnits;
+						RequiredAmperesValue[atomic_load_explicit(&SelectedChannel, memory_order_acquire)] = CommandFloatingPointArgument;
+					}
+					atomic_store_explicit( &OrderCode, ORDER_COMMAND_PC, memory_order_release );
+					transmitViaSerialPort(">");
 				}
-				if (FULL_SCALE_IN_DAC_UNITS < ValueInDacUnits){
-					ValueInDacUnits = FULL_SCALE_IN_DAC_UNITS;
+				else{
+					ErrorCode = COMMAND_I2C_ERROR;
 				}
-				if (SelectedChannel < NUMBER_OF_POWER_SUPPLIES){
-					RequiredDacValue[SelectedChannel] = (uint16_t)ValueInDacUnits;
-					RequiredAmperesValue[SelectedChannel] = CommandFloatingPointArgument;
-				}
-				OrderCode = ORDER_PCX;
-				transmitViaSerialPort(">");
 			}
 		}
 
@@ -130,11 +157,13 @@ CommandErrors executeCommand(void){
 		}
 		else{
 			// essential action
-			snprintf( ResponseBuffer, COMMAND_BUFFER_LENGTH-1, "%.2f\r\n>", RequiredAmperesValue[SelectedChannel] );
+			snprintf( ResponseBuffer, COMMAND_BUFFER_LENGTH-1, "%.2f\r\n>", RequiredAmperesValue[atomic_load_explicit(&SelectedChannel, memory_order_acquire)] );
 			transmitViaSerialPort( ResponseBuffer );
 		}
 
-		printf( "command <%s>  E=%d  ch=%u val=%f\n", NewCommand, ErrorCode, SelectedChannel+1, RequiredAmperesValue[SelectedChannel] );
+		printf( "command <%s>  E=%d  ch=%u val=%f\n", NewCommand, ErrorCode,
+				(unsigned)atomic_load_explicit(&SelectedChannel, memory_order_acquire)+1,
+				RequiredAmperesValue[atomic_load_explicit(&SelectedChannel, memory_order_acquire)] );
 	}
 	else if (strstr(NewCommand, "Z") == NewCommand){ // "Select channel" command
 		unsigned TemporaryChannel;
@@ -148,12 +177,13 @@ CommandErrors executeCommand(void){
 			}
 			else{
 				// essential action
-				SelectedChannel = TemporaryChannel-1;
+				atomic_store_explicit( &SelectedChannel, TemporaryChannel-1, memory_order_release );
 				transmitViaSerialPort(">");
 			}
 		}
 
-		printf( "command <%s>  E=%d  %u-1=?=%u\n", NewCommand, ErrorCode, TemporaryChannel, SelectedChannel );
+		printf( "command <%s>  E=%d  ch=%u\n", NewCommand, ErrorCode,
+				(unsigned)atomic_load_explicit(&SelectedChannel, memory_order_acquire)+1 );
 	}
 	else if (strstr(NewCommand, "?Z") == NewCommand){ // "Get selected channel number" command
 		if ((NewCommand[CommadLength-2] != '\r') || (NewCommand[CommadLength-1] != '\n')){
@@ -161,11 +191,13 @@ CommandErrors executeCommand(void){
 		}
 		else{
 			// essential action
-			snprintf( ResponseBuffer, COMMAND_BUFFER_LENGTH-1, "Z=%u\r\n>", (unsigned)(SelectedChannel+1) );
+			snprintf( ResponseBuffer, COMMAND_BUFFER_LENGTH-1, "Z=%u\r\n>",
+					(unsigned)(atomic_load_explicit(&SelectedChannel, memory_order_acquire)+1) );
 			transmitViaSerialPort( ResponseBuffer );
 		}
 
-		printf( "command <%s>  E=%d  ch=%u\n", NewCommand, ErrorCode, SelectedChannel+1 );
+		printf( "command <%s>  E=%d  ch=%u\n", NewCommand, ErrorCode,
+				(unsigned)atomic_load_explicit(&SelectedChannel, memory_order_acquire)+1 );
 	}
 	else if (strstr(NewCommand, "POWER") == NewCommand){ // "Switch power on/off" command
 		unsigned TemporaryPowerArgument;
@@ -214,11 +246,13 @@ CommandErrors executeCommand(void){
 		}
 		else{
 			// essential action
-			snprintf( ResponseBuffer, COMMAND_BUFFER_LENGTH-1, "V=%f\r\n>", getVoltage( SelectedChannel>0? 1 : 0 ) );
+			snprintf( ResponseBuffer, COMMAND_BUFFER_LENGTH-1, "V=%f\r\n>",
+					getVoltage( atomic_load_explicit(&SelectedChannel, memory_order_acquire)>0? 1 : 0 ) );
 			transmitViaSerialPort( ResponseBuffer );
 		}
 
-		printf( "command <%s>  E=%d  ch=%u\n", NewCommand, ErrorCode, SelectedChannel+1 );
+		printf( "command <%s>  E=%d  ch=%u\n", NewCommand, ErrorCode,
+				(unsigned)atomic_load_explicit(&SelectedChannel, memory_order_acquire)+1 );
 	}
 	else if (strstr(NewCommand, "MY") == NewCommand){ // "Get Sig2 value" command
 		bool Sig2Value = false;
@@ -236,53 +270,9 @@ CommandErrors executeCommand(void){
 			}
 		}
 
-		printf( "command <%s>  E=%d  ch=%u Sig2=%c\n", NewCommand, ErrorCode, SelectedChannel+1, Sig2Value? '1':'0' );
+		printf( "command <%s>  E=%d  ch=%u Sig2=%c\n", NewCommand, ErrorCode,
+				(unsigned)atomic_load_explicit(&SelectedChannel, memory_order_acquire)+1, Sig2Value? '1':'0' );
 	}
-#if 0 // cancelled commands
-	else if (strstr(NewCommand, "ADDR") == NewCommand){ // "Set values of addresses" command
-		unsigned TemporaryAddressArgument1, TemporaryAddressArgument2, TemporaryAddressArgument3, TemporaryAddressArgument4;
-		int Result = sscanf( NewCommand, "ADDR:%X;%X;%X;%X\r\n",
-				&TemporaryAddressArgument1, &TemporaryAddressArgument2, &TemporaryAddressArgument3, &TemporaryAddressArgument4 );
-		if ((Result != 4) || (NewCommand[CommadLength-2] != '\r') || (NewCommand[CommadLength-1] != '\n')){
-			ErrorCode = COMMAND_ADDRESS_INCORRECT_FORMAT;
-		}
-		else{
-			if ((TemporaryAddressArgument1 > 0xFF) || (TemporaryAddressArgument2 > 0xFF) ||
-					(TemporaryAddressArgument3 > 0xFF) || (TemporaryAddressArgument4 > 0xFF))
-			{
-				ErrorCode = COMMAND_ADDRESS_INCORRECT_VALUE;
-			}
-			else{
-				// essential action
-				assert( NUMBER_OF_POWER_SUPPLIES == 4 );
-				AddressTable[0] = (uint8_t)TemporaryAddressArgument1;
-				AddressTable[1] = (uint8_t)TemporaryAddressArgument2;
-				AddressTable[2] = (uint8_t)TemporaryAddressArgument3;
-				AddressTable[3] = (uint8_t)TemporaryAddressArgument4;
-
-				transmitViaSerialPort(">");
-			}
-		}
-
-		printf( "command <%s>  E=%d  Arg:%02X;%02X;%02X;%02X\n", NewCommand, ErrorCode,
-				TemporaryAddressArgument1, TemporaryAddressArgument2, TemporaryAddressArgument3, TemporaryAddressArgument4 );
-	}
-	else if (strstr(NewCommand, "?ADDR") == NewCommand){ // "Get values of addresses" command
-		if ((NewCommand[CommadLength-2] != '\r') || (NewCommand[CommadLength-1] != '\n')){
-			ErrorCode = COMMAND__ADDRESS_INCORRECT_FORMAT;
-		}
-		else{
-			// essential action
-			assert( NUMBER_OF_POWER_SUPPLIES == 4 );
-			snprintf( ResponseBuffer, COMMAND_BUFFER_LENGTH-1, "Addr:%02X;%02X;%02X;%02X\r\n>",
-					AddressTable[0], AddressTable[1], AddressTable[2], AddressTable[3] );
-			transmitViaSerialPort( ResponseBuffer );
-		}
-
-		printf( "command <%s>  E=%d %02X;%02X;%02X;%02X\n", NewCommand, ErrorCode,
-				AddressTable[0], AddressTable[1], AddressTable[2], AddressTable[3] );
-	}
-#endif
 	else{
 		ErrorCode = COMMAND_UNKNOWN;
 		printf( "command <%s>  %d\n", NewCommand, ErrorCode );

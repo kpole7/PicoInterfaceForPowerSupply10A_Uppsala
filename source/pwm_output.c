@@ -1,4 +1,4 @@
-// pwm_output.c
+/// @file pwm_output.c
 
 #include "pico/stdlib.h"
 #include "hardware/pwm.h"
@@ -12,6 +12,7 @@
 /// @brief The PWM output frequency is 40kHz
 #define PWM_FREQ 		40000
 
+/// @brief This function configures the pin as a pulse generator using hardware PWM
 void initializePwm(void){
     gpio_set_function(GPIO_FOR_PWM, GPIO_FUNC_PWM); // Set pin as PWM
 

@@ -1,4 +1,4 @@
-// debugging.c
+/// @file debugging.c
 
 #include "pico/stdlib.h"
 #include "hardware/timer.h"
@@ -28,6 +28,10 @@ bool getPushButtonState(void){
 	return gpio_get(GPIO_FOR_PUSH_BUTTON);
 }
 
+/// @brief This function checks if the push button state has changed, ignoring contact flicker
+/// @return 0 if the state has not changed
+/// @return 1 if the status has changed to "released"
+/// @return -1 if the status has changed to "pressed"
 int8_t getEventPushButtonChange(void){
 	static bool OldStatus = false;
 	static uint64_t TimeOfLastChange = 0;
