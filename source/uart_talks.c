@@ -28,8 +28,8 @@
 #define UART_DATA_BITS		8
 #define UART_PARITY			UART_PARITY_NONE
 
-#define UART_INPUT_BUFFER_SIZE				32
-#define UART_OUTPUT_BUFFER_SIZE				128
+#define UART_INPUT_BUFFER_SIZE				32			// buffer size (must be power-of-two)
+#define UART_OUTPUT_BUFFER_SIZE				128			// buffer size (must be power-of-two)
 #define SILENCE_DETECTION_IN_MICROSECONDS	6250		// 3 bytes for the given baud rate
 #define REPLACEMENT_FOR_UNPRINTABLE			'~'
 

@@ -19,7 +19,6 @@
 ///
 /// @todo Check (using an oscilloscope) the duration of the timer interrupt handler
 /// @todo Check the duration of the UART interrupt handler
-/// @todo Check the duration of the code in critical sections
 
 #include <stdbool.h>	// just for Eclipse
 #include <stdio.h>		// just for debugging
