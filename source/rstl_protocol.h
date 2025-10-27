@@ -36,7 +36,6 @@
 #ifndef SOURCE_RSTL_PROTOCOL_H_
 #define SOURCE_RSTL_PROTOCOL_H_
 
-#include <stdatomic.h>
 #include "uart_talks.h"
 
 //---------------------------------------------------------------------------------------------------
@@ -88,14 +87,13 @@ extern char NewCommand[COMMAND_BUFFER_LENGTH];
 
 /// @brief Currently selected (active) power supply unit
 /// All commands related to power supply settings apply to this device
-extern atomic_int SelectedChannel;
+extern uint32_t SelectedChannel;
 
 /// @brief This is a code of an action that cannot be executed immediately but must be processed by a state machine
-/// The variable can be modified in the main loop and in the timer interrupt handler
-extern atomic_int OrderCode;
+extern uint32_t OrderCode;
 
 /// @brief Setpoint value for a DAC
-extern volatile uint16_t RequiredDacValue[NUMBER_OF_POWER_SUPPLIES];
+extern uint16_t RequiredDacValue[NUMBER_OF_POWER_SUPPLIES];
 
 //---------------------------------------------------------------------------------------------------
 // Function prototypes

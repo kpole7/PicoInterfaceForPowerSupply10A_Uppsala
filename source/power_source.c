@@ -65,12 +65,22 @@ int main() {
 	initializeRstlProtocol();
 	turnOnLedOnBoard();
 	startPeriodicInterrupt();
+	atomic_store_explicit( &TimeTickTokenHead, 0, memory_order_release );
+	uint32_t TimeTickTokenTail = 0;
 
 	printf("Hello guys\n");
 
     while (true) {
         // main loop
     	driveUserInterface();
+
+    	uint32_t TimeTickTemporaryTokenHead = atomic_load_explicit( &TimeTickTokenHead, memory_order_acquire );
+    	if (TimeTickTemporaryTokenHead != TimeTickTokenTail){
+    		TimeTickTokenTail = TimeTickTemporaryTokenHead;
+
+    		psuTalksTimeTick();
+    	}
+
 
 #if 0 // debugging
     	int8_t Temporary = getEventPushButtonChange();

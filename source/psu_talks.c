@@ -85,7 +85,7 @@ static volatile uint8_t StateCode;
 
 /// @brief This variable is used to monitor the I2C devices
 /// @todo exception handling
-static atomic_int I2cConsecutiveErrors;
+static uint32_t I2cConsecutiveErrors;
 
 //---------------------------------------------------------------------------------------------------
 // Function prototypes
@@ -126,7 +126,7 @@ void initializePsuTalks(void){
 	gpio_put( GPIO_FOR_NOT_WR_OUTPUT, true );	// the idle state is high
 
 	StateCode = 0;
-	atomic_store_explicit( &I2cConsecutiveErrors, 0, memory_order_release );
+	I2cConsecutiveErrors = 0;
 
     gpio_init(GPIO_FOR_POWER_CONTACTOR);
     gpio_put(GPIO_FOR_POWER_CONTACTOR, INITIAL_MAIN_CONTACTOR_STATE);
@@ -137,7 +137,7 @@ void initializePsuTalks(void){
 	gpio_set_dir(GPIO_FOR_PSU_LOGIC_FEEDBACK, GPIO_IN);
 }
 
-/// @brief This function is called periodically by the time interrupt handler
+/// @brief This function is called periodically in the main loop in synchronization with the timer interrupt handler
 void psuTalksTimeTick(void){
 	static uint16_t WorkingUnsignedArgument;
 	bool IsI2cSuccess;
@@ -146,34 +146,34 @@ void psuTalksTimeTick(void){
 	changeDebugPin1(false);
 	changeDebugPin2(false);
 
-	if (atomic_load_explicit( &OrderCode, memory_order_acquire ) == ORDER_COMMAND_PC){
+	if (OrderCode == ORDER_COMMAND_PC){
 
 		changeDebugPin2(true);
 
 		// take a new order
 		StateCode = 0;
-		WorkingUnsignedArgument = prepareDataForTwoPcf8574( RequiredDacValue[atomic_load_explicit(&SelectedChannel, memory_order_acquire)],
-				AddressTable[atomic_load_explicit(&SelectedChannel, memory_order_acquire)] );
-		atomic_store_explicit( &OrderCode, ORDER_PROCESSING, memory_order_release );
+		WorkingUnsignedArgument = prepareDataForTwoPcf8574( RequiredDacValue[SelectedChannel],
+				AddressTable[SelectedChannel] );
+		OrderCode = ORDER_PROCESSING;
 	}
 
-	if (atomic_load_explicit( &OrderCode, memory_order_acquire ) == ORDER_PROCESSING){
+	if (OrderCode == ORDER_PROCESSING){
 
 		switch( StateCode ){
 		case 0:
 			IsI2cSuccess = i2cWrite( PCF8574_ADDRESS_2, (uint8_t)WorkingUnsignedArgument );
 			if (IsI2cSuccess){
-				atomic_store_explicit( &I2cConsecutiveErrors, 0, memory_order_release );
+				I2cConsecutiveErrors = 0;
 				StateCode++;
 			}
 			else{
 				// Exception handling
-				if (atomic_load_explicit( &I2cConsecutiveErrors, memory_order_acquire ) < I2C_CONSECUTIVE_ERRORS_LIMIT){
-					atomic_fetch_add_explicit( &I2cConsecutiveErrors, 1, memory_order_acq_rel );
+				if (I2cConsecutiveErrors < I2C_CONSECUTIVE_ERRORS_LIMIT){
+					I2cConsecutiveErrors++;
 				}
 				else{
 					StateCode = 0;
-					atomic_store_explicit( &OrderCode, ORDER_COMPLETED, memory_order_release );
+					OrderCode = ORDER_COMPLETED;
 				}
 			}
 			break;
@@ -181,17 +181,17 @@ void psuTalksTimeTick(void){
 		case 1:
 			IsI2cSuccess = i2cWrite( PCF8574_ADDRESS_1, (uint8_t)(WorkingUnsignedArgument >> 8) );
 			if (IsI2cSuccess){
-				atomic_store_explicit( &I2cConsecutiveErrors, 0, memory_order_release );
+				I2cConsecutiveErrors = 0;
 				StateCode++;
 			}
 			else{
 				// Exception handling
-				if (atomic_load_explicit( &I2cConsecutiveErrors, memory_order_acquire ) < I2C_CONSECUTIVE_ERRORS_LIMIT){
-					atomic_fetch_add_explicit( &I2cConsecutiveErrors, 1, memory_order_acq_rel );
+				if (I2cConsecutiveErrors < I2C_CONSECUTIVE_ERRORS_LIMIT){
+					I2cConsecutiveErrors++;
 				}
 				else{
 					StateCode = 0;
-					atomic_store_explicit( &OrderCode, ORDER_COMPLETED, memory_order_release );
+					OrderCode = ORDER_COMPLETED;
 				}
 			}
 			break;
@@ -206,7 +206,7 @@ void psuTalksTimeTick(void){
 			gpio_put( GPIO_FOR_NOT_WR_OUTPUT, true );
 
 			StateCode = 0;
-			atomic_store_explicit( &OrderCode, ORDER_COMPLETED, memory_order_release );
+			OrderCode = ORDER_COMPLETED;
 			break;
 
 		default:

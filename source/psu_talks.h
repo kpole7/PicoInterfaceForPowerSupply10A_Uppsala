@@ -23,7 +23,7 @@
 /// @brief This function initializes "not WR" output port used to communicate with PSUs
 void initializePsuTalks(void);
 
-/// @brief This function is called periodically by the time interrupt handler
+/// @brief This function is called periodically in the main loop in synchronization with the timer interrupt handler
 void psuTalksTimeTick(void);
 
 /// @brief This function changes the power contactor state

@@ -32,14 +32,13 @@ char NewCommand[COMMAND_BUFFER_LENGTH];
 
 /// @brief Currently selected (active) power supply unit
 /// All commands related to power supply settings apply to this device
-atomic_int SelectedChannel;
+uint32_t SelectedChannel;
 
 /// @brief This is a code of an action that cannot be executed immediately but must be processed by a state machine
-/// The variable can be modified in the main loop and in the timer interrupt handler
-atomic_int OrderCode;
+uint32_t OrderCode;
 
 /// @brief Setpoint value for a DAC
-volatile uint16_t RequiredDacValue[NUMBER_OF_POWER_SUPPLIES];
+uint16_t RequiredDacValue[NUMBER_OF_POWER_SUPPLIES];
 
 //---------------------------------------------------------------------------------------------------
 // Local variables
@@ -56,20 +55,20 @@ static float RequiredAmperesValue[NUMBER_OF_POWER_SUPPLIES];
 
 /// @brief This function initializes GPIO controlling the the power contactor and initializes variables of this module
 void initializeRstlProtocol(void){
-	atomic_store_explicit( &SelectedChannel, 0, memory_order_release );
+	SelectedChannel = 0;
 	for (uint8_t J = 0; J < NUMBER_OF_POWER_SUPPLIES; J++){
 		RequiredDacValue[J] = INITIAL_DAC_VALUE;
 		RequiredAmperesValue[J] = 0.0;
 	}
-	atomic_store_explicit( &OrderCode, ORDER_NONE, memory_order_release );
+	OrderCode = ORDER_NONE;
 
 	IsMainContactorStateOn = INITIAL_MAIN_CONTACTOR_STATE;
 }
 
 /// @brief This function is called in the main loop
 void driveUserInterface(void){
-	if (atomic_load_explicit( &OrderCode, memory_order_acquire ) == ORDER_COMPLETED){
-		atomic_store_explicit( &OrderCode, ORDER_NONE, memory_order_release );
+	if (OrderCode == ORDER_COMPLETED){
+		OrderCode = ORDER_NONE;
 	}
 	bool NewCommandIsReady = serialPortReceiver();
 	if (NewCommandIsReady){
@@ -96,15 +95,15 @@ CommandErrors executeCommand(void){
 			ErrorCode = COMMAND_PCX_INCORRECT_FORMAT;
 		}
 		else{
-			if (atomic_load_explicit( &OrderCode, memory_order_acquire ) == ORDER_NONE){
+			if (OrderCode == ORDER_NONE){
 				// essential action
-				if (atomic_load_explicit(&SelectedChannel, memory_order_acquire) < NUMBER_OF_POWER_SUPPLIES){
-					RequiredDacValue[atomic_load_explicit(&SelectedChannel, memory_order_acquire)] = (uint16_t)DacValue;
-					RequiredAmperesValue[atomic_load_explicit(&SelectedChannel, memory_order_acquire)] = (float)DacValue;
-					RequiredAmperesValue[atomic_load_explicit(&SelectedChannel, memory_order_acquire)] -= (float)OFFSET_IN_DAC_UNITS;
-					RequiredAmperesValue[atomic_load_explicit(&SelectedChannel, memory_order_acquire)] *= DAC_TO_AMPERES_COEFFICIENT;
+				if (SelectedChannel < NUMBER_OF_POWER_SUPPLIES){
+					RequiredDacValue[SelectedChannel] = (uint16_t)DacValue;
+					RequiredAmperesValue[SelectedChannel] = (float)DacValue;
+					RequiredAmperesValue[SelectedChannel] -= (float)OFFSET_IN_DAC_UNITS;
+					RequiredAmperesValue[SelectedChannel] *= DAC_TO_AMPERES_COEFFICIENT;
 				}
-				atomic_store_explicit( &OrderCode, ORDER_COMMAND_PC, memory_order_release );
+				OrderCode = ORDER_COMMAND_PC;
 				transmitViaSerialPort(">");
 			}
 			else{
@@ -112,7 +111,7 @@ CommandErrors executeCommand(void){
 			}
 		}
 		printf( "command <%s> E=%d ch=%u %04X\n", NewCommand, ErrorCode,
-				(unsigned)atomic_load_explicit(&SelectedChannel, memory_order_acquire)+1, DacValue );
+				(unsigned)SelectedChannel+1, DacValue );
 	}
 	else if (strstr(NewCommand, "PC") == NewCommand){ // "Program current" command
 		float CommandFloatingPointArgument = NAN;
@@ -126,7 +125,7 @@ CommandErrors executeCommand(void){
 				ErrorCode = COMMAND_PC_INCORRECT_VALUE;
 			}
 			else{
-				if (atomic_load_explicit( &OrderCode, memory_order_acquire ) == ORDER_NONE){
+				if (OrderCode == ORDER_NONE){
 					// essential action
 					ValueInDacUnits = (int16_t)round(CommandFloatingPointArgument * AMPERES_TO_DAC_COEFFICIENT);
 					ValueInDacUnits += OFFSET_IN_DAC_UNITS;
@@ -136,11 +135,11 @@ CommandErrors executeCommand(void){
 					if (FULL_SCALE_IN_DAC_UNITS < ValueInDacUnits){
 						ValueInDacUnits = FULL_SCALE_IN_DAC_UNITS;
 					}
-					if (atomic_load_explicit(&SelectedChannel, memory_order_acquire) < NUMBER_OF_POWER_SUPPLIES){
-						RequiredDacValue[atomic_load_explicit(&SelectedChannel, memory_order_acquire)] = (uint16_t)ValueInDacUnits;
-						RequiredAmperesValue[atomic_load_explicit(&SelectedChannel, memory_order_acquire)] = CommandFloatingPointArgument;
+					if (SelectedChannel < NUMBER_OF_POWER_SUPPLIES){
+						RequiredDacValue[SelectedChannel] = (uint16_t)ValueInDacUnits;
+						RequiredAmperesValue[SelectedChannel] = CommandFloatingPointArgument;
 					}
-					atomic_store_explicit( &OrderCode, ORDER_COMMAND_PC, memory_order_release );
+					OrderCode = ORDER_COMMAND_PC;
 					transmitViaSerialPort(">");
 				}
 				else{
@@ -157,13 +156,13 @@ CommandErrors executeCommand(void){
 		}
 		else{
 			// essential action
-			snprintf( ResponseBuffer, COMMAND_BUFFER_LENGTH-1, "%.2f\r\n>", RequiredAmperesValue[atomic_load_explicit(&SelectedChannel, memory_order_acquire)] );
+			snprintf( ResponseBuffer, COMMAND_BUFFER_LENGTH-1, "%.2f\r\n>", RequiredAmperesValue[SelectedChannel] );
 			transmitViaSerialPort( ResponseBuffer );
 		}
 
 		printf( "command <%s>  E=%d  ch=%u val=%f\n", NewCommand, ErrorCode,
-				(unsigned)atomic_load_explicit(&SelectedChannel, memory_order_acquire)+1,
-				RequiredAmperesValue[atomic_load_explicit(&SelectedChannel, memory_order_acquire)] );
+				(unsigned)SelectedChannel+1,
+				RequiredAmperesValue[SelectedChannel] );
 	}
 	else if (strstr(NewCommand, "Z") == NewCommand){ // "Select channel" command
 		unsigned TemporaryChannel;
@@ -177,13 +176,13 @@ CommandErrors executeCommand(void){
 			}
 			else{
 				// essential action
-				atomic_store_explicit( &SelectedChannel, TemporaryChannel-1, memory_order_release );
+				SelectedChannel = TemporaryChannel-1;
 				transmitViaSerialPort(">");
 			}
 		}
 
 		printf( "command <%s>  E=%d  ch=%u\n", NewCommand, ErrorCode,
-				(unsigned)atomic_load_explicit(&SelectedChannel, memory_order_acquire)+1 );
+				(unsigned)SelectedChannel+1 );
 	}
 	else if (strstr(NewCommand, "?Z") == NewCommand){ // "Get selected channel number" command
 		if ((NewCommand[CommadLength-2] != '\r') || (NewCommand[CommadLength-1] != '\n')){
@@ -192,12 +191,12 @@ CommandErrors executeCommand(void){
 		else{
 			// essential action
 			snprintf( ResponseBuffer, COMMAND_BUFFER_LENGTH-1, "Z=%u\r\n>",
-					(unsigned)(atomic_load_explicit(&SelectedChannel, memory_order_acquire)+1) );
+					(unsigned)(SelectedChannel+1) );
 			transmitViaSerialPort( ResponseBuffer );
 		}
 
 		printf( "command <%s>  E=%d  ch=%u\n", NewCommand, ErrorCode,
-				(unsigned)atomic_load_explicit(&SelectedChannel, memory_order_acquire)+1 );
+				(unsigned)SelectedChannel+1 );
 	}
 	else if (strstr(NewCommand, "POWER") == NewCommand){ // "Switch power on/off" command
 		unsigned TemporaryPowerArgument;
@@ -247,12 +246,12 @@ CommandErrors executeCommand(void){
 		else{
 			// essential action
 			snprintf( ResponseBuffer, COMMAND_BUFFER_LENGTH-1, "V=%f\r\n>",
-					getVoltage( atomic_load_explicit(&SelectedChannel, memory_order_acquire)>0? 1 : 0 ) );
+					getVoltage( SelectedChannel>0? 1 : 0 ) );
 			transmitViaSerialPort( ResponseBuffer );
 		}
 
 		printf( "command <%s>  E=%d  ch=%u\n", NewCommand, ErrorCode,
-				(unsigned)atomic_load_explicit(&SelectedChannel, memory_order_acquire)+1 );
+				(unsigned)SelectedChannel+1 );
 	}
 	else if (strstr(NewCommand, "MY") == NewCommand){ // "Get Sig2 value" command
 		bool Sig2Value = false;
@@ -271,7 +270,7 @@ CommandErrors executeCommand(void){
 		}
 
 		printf( "command <%s>  E=%d  ch=%u Sig2=%c\n", NewCommand, ErrorCode,
-				(unsigned)atomic_load_explicit(&SelectedChannel, memory_order_acquire)+1, Sig2Value? '1':'0' );
+				(unsigned)SelectedChannel+1, Sig2Value? '1':'0' );
 	}
 	else{
 		ErrorCode = COMMAND_UNKNOWN;
