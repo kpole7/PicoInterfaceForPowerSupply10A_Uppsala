@@ -173,11 +173,11 @@ CommandErrors executeCommand(void){
 		int16_t ValueInDacUnits = 22222; // value in the case of failure (out of range)
 		int Result = sscanf( NewCommand, "USTAW%f\r\n", &CommandFloatingPointArgument );
 		if ((Result != 1) || (NewCommand[CommadLength-2] != '\r') || (NewCommand[CommadLength-1] != '\n')){
-			ErrorCode = COMMAND_USTAW_INCORRECT_FORMAT;
+			ErrorCode = COMMAND_SET_INCORRECT_FORMAT;
 		}
 		else{
 			if ((CommandFloatingPointArgument < -10.0) || (CommandFloatingPointArgument > 10.0)){
-				ErrorCode = COMMAND_USTAW_INCORRECT_VALUE;
+				ErrorCode = COMMAND_SET_INCORRECT_VALUE;
 			}
 			else{
 				if (atomic_load_explicit( &OrderCode, memory_order_acquire ) == ORDER_NONE){
@@ -195,7 +195,7 @@ CommandErrors executeCommand(void){
 						RequiredDacValue[TemporarySelectedChannel] = (uint16_t)ValueInDacUnits;
 						RequiredAmperesValue[TemporarySelectedChannel] = CommandFloatingPointArgument;
 					}
-					atomic_store_explicit( &OrderCode, ORDER_COMMAND_USTAW, memory_order_release );
+					atomic_store_explicit( &OrderCode, ORDER_COMMAND_SET, memory_order_release );
 					transmitViaSerialPort(">");
 				}
 				else{

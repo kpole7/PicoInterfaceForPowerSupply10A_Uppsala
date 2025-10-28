@@ -45,21 +45,24 @@ typedef enum {
 	STATE_PC_PCX_2ND_BYTE,
 	STATE_PC_PCX_NOT_WR_SIGNAL,
 
-	STATE_USTAW,					// setting a new value following a ramp
+	STATE_SET_START,				// setting a new value following a ramp
+	STATE_SET_1ST_BYTE,
+	STATE_SET_2ND_BYTE,
+	STATE_SET_NOT_WR_SIGNAL,
 
-	STATE_ZASILANIE1_01_Z1,
-	STATE_ZASILANIE1_02_PCX0,
-	STATE_ZASILANIE1_03_MY,
-	STATE_ZASILANIE1_04_PCXFFF,
-	STATE_ZASILANIE1_05_MY,
-	STATE_ZASILANIE1_06_PC0,
-	STATE_ZASILANIE1_07_Z2,
-	STATE_ZASILANIE1_08_PCX0,
-	STATE_ZASILANIE1_09_MY,
-	STATE_ZASILANIE1_10_PCXFFF,
-	STATE_ZASILANIE1_11_MY,
-	STATE_ZASILANIE1_12_PC0,
-	STATE_ZASILANIE1_13_POWER1,
+	STATE_POWER1_01_Z1,
+	STATE_POWER1_02_PCX0,
+	STATE_POWER1_03_MY,
+	STATE_POWER1_04_PCXFFF,
+	STATE_POWER1_05_MY,
+	STATE_POWER1_06_PC0,
+	STATE_POWER1_07_Z2,
+	STATE_POWER1_08_PCX0,
+	STATE_POWER1_09_MY,
+	STATE_POWER1_10_PCXFFF,
+	STATE_POWER1_11_MY,
+	STATE_POWER1_12_PC0,
+	STATE_POWER1_13_POWER1,
 
 	STATE_ERROR_I2C
 }StatesOfPsuFsm;
@@ -181,6 +184,19 @@ void psuTalksTimeTick(void){
 		return;
 	}
 
+	if (atomic_load_explicit( &OrderCode, memory_order_acquire ) == ORDER_COMMAND_SET){
+
+		changeDebugPin2(true);
+
+		// take a new order
+		StateCode = STATE_SET_START;
+		WorkingUnsignedArgument = prepareDataForTwoPcf8574( RequiredDacValue[atomic_load_explicit(&SelectedChannel, memory_order_acquire)],
+				AddressTable[atomic_load_explicit(&SelectedChannel, memory_order_acquire)] );
+		atomic_store_explicit( &OrderCode, ORDER_PROCESSING, memory_order_release );
+
+		return;
+	}
+
 	if (atomic_load_explicit( &OrderCode, memory_order_acquire ) == ORDER_PROCESSING){
 
 		switch( StateCode ){
@@ -227,6 +243,55 @@ void psuTalksTimeTick(void){
 			break;
 
 		case STATE_PC_PCX_NOT_WR_SIGNAL:
+			gpio_put( GPIO_FOR_NOT_WR_OUTPUT, true );
+
+			StateCode = STATE_IDLE;
+			atomic_store_explicit( &OrderCode, ORDER_COMPLETED, memory_order_release );
+			break;
+
+		case STATE_SET_START:
+			IsI2cSuccess = i2cWrite( PCF8574_ADDRESS_2, (uint8_t)WorkingUnsignedArgument );
+			if (IsI2cSuccess){
+				atomic_store_explicit( &I2cConsecutiveErrors, 0, memory_order_release );
+				StateCode = STATE_SET_1ST_BYTE;
+			}
+			else{
+				// Exception handling
+				if (atomic_load_explicit( &I2cConsecutiveErrors, memory_order_acquire ) < I2C_CONSECUTIVE_ERRORS_LIMIT){
+					atomic_fetch_add_explicit( &I2cConsecutiveErrors, 1, memory_order_acq_rel );
+				}
+				else{
+					StateCode = STATE_ERROR_I2C;
+					atomic_store_explicit( &OrderCode, ORDER_COMPLETED, memory_order_release );
+				}
+			}
+			break;
+
+		case STATE_SET_1ST_BYTE:
+			IsI2cSuccess = i2cWrite( PCF8574_ADDRESS_1, (uint8_t)(WorkingUnsignedArgument >> 8) );
+			if (IsI2cSuccess){
+				atomic_store_explicit( &I2cConsecutiveErrors, 0, memory_order_release );
+				StateCode = STATE_SET_2ND_BYTE;
+			}
+			else{
+				// Exception handling
+				if (atomic_load_explicit( &I2cConsecutiveErrors, memory_order_acquire ) < I2C_CONSECUTIVE_ERRORS_LIMIT){
+					atomic_fetch_add_explicit( &I2cConsecutiveErrors, 1, memory_order_acq_rel );
+				}
+				else{
+					StateCode = STATE_ERROR_I2C;
+					atomic_store_explicit( &OrderCode, ORDER_COMPLETED, memory_order_release );
+				}
+			}
+			break;
+
+		case STATE_SET_2ND_BYTE:
+			// writing to ADC (signal /WR)
+			gpio_put( GPIO_FOR_NOT_WR_OUTPUT, false );
+			StateCode = STATE_SET_NOT_WR_SIGNAL;
+			break;
+
+		case STATE_SET_NOT_WR_SIGNAL:
 			gpio_put( GPIO_FOR_NOT_WR_OUTPUT, true );
 
 			StateCode = STATE_IDLE;
