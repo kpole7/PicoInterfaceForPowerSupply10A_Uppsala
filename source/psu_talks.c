@@ -42,6 +42,20 @@ typedef enum {
 	STATE_PC_PCX_1ST_BYTE		= 1,
 	STATE_PC_PCX_2ND_BYTE		= 2,
 	STATE_PC_PCX_NOT_WR_SIGNAL	= 3,
+	STATE_ZASILANIE1_01_Z1		= 4,
+	STATE_ZASILANIE1_02_PCX0	= 5,
+	STATE_ZASILANIE1_03_MY		= 6,
+	STATE_ZASILANIE1_04_PCXFFF	= 7,
+	STATE_ZASILANIE1_05_MY		= 8,
+	STATE_ZASILANIE1_06_PC0		= 9,
+	STATE_ZASILANIE1_07_Z2		= 10,
+	STATE_ZASILANIE1_08_PCX0	= 11,
+	STATE_ZASILANIE1_09_MY		= 12,
+	STATE_ZASILANIE1_10_PCXFFF	= 13,
+	STATE_ZASILANIE1_11_MY		= 14,
+	STATE_ZASILANIE1_12_PC0		= 15,
+	STATE_ZASILANIE1_13_POWER1	= 16,
+
 }StatesOfPsuFsm;
 
 /// This table shows what needs to be written to the PCF8574 expanders
@@ -69,7 +83,8 @@ static const uint16_t ConvertionPsuAddressToPcf8574[PSU_ADDRESS_BITS] = {
 		0x2000
 };
 
-// These are physical addresses of the power supply units installed in the equipment
+/// These are physical addresses of the power supply units installed in the equipment
+/// The addresses are determined by the dip-switches
 static const uint8_t AddressTable[NUMBER_OF_POWER_SUPPLIES] = {
 		0,
 		1,

@@ -38,7 +38,7 @@ atomic_int SelectedChannel;
 /// The variable can be modified in the main loop and in the timer interrupt handler
 atomic_int OrderCode;
 
-/// @brief Setpoint value for a DAC
+/// @brief User's set-point value for a DAC
 volatile uint16_t RequiredDacValue[NUMBER_OF_POWER_SUPPLIES];
 
 //---------------------------------------------------------------------------------------------------
@@ -98,11 +98,12 @@ CommandErrors executeCommand(void){
 		else{
 			if (atomic_load_explicit( &OrderCode, memory_order_acquire ) == ORDER_NONE){
 				// essential action
-				if (atomic_load_explicit(&SelectedChannel, memory_order_acquire) < NUMBER_OF_POWER_SUPPLIES){
-					RequiredDacValue[atomic_load_explicit(&SelectedChannel, memory_order_acquire)] = (uint16_t)DacValue;
-					RequiredAmperesValue[atomic_load_explicit(&SelectedChannel, memory_order_acquire)] = (float)DacValue;
-					RequiredAmperesValue[atomic_load_explicit(&SelectedChannel, memory_order_acquire)] -= (float)OFFSET_IN_DAC_UNITS;
-					RequiredAmperesValue[atomic_load_explicit(&SelectedChannel, memory_order_acquire)] *= DAC_TO_AMPERES_COEFFICIENT;
+				int TemporarySelectedChannel = atomic_load_explicit(&SelectedChannel, memory_order_acquire);
+				if (TemporarySelectedChannel < NUMBER_OF_POWER_SUPPLIES){
+					RequiredDacValue[TemporarySelectedChannel] = (uint16_t)DacValue;
+					RequiredAmperesValue[TemporarySelectedChannel] = (float)DacValue;
+					RequiredAmperesValue[TemporarySelectedChannel] -= (float)OFFSET_IN_DAC_UNITS;
+					RequiredAmperesValue[TemporarySelectedChannel] *= DAC_TO_AMPERES_COEFFICIENT;
 				}
 				atomic_store_explicit( &OrderCode, ORDER_COMMAND_PC, memory_order_release );
 				transmitViaSerialPort(">");
