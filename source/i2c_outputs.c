@@ -1,4 +1,11 @@
 /// @file i2c_outputs.c
+/// I2C configuration:
+/// Raspberry Pi Pico 2020
+/// I2C port GPIO8=SDA, GPIO9=SCL
+/// I2C frequency = 50 kHz
+/// I2C timeout = 600 us
+/// Measured SCL frequency = 47.85 kHz
+/// Measured time of 1 byte transmission = 400 us
 
 #include "hardware/i2c.h"
 
@@ -30,7 +37,7 @@ void initializeI2cOutputs(void){
 /// @return true on success
 /// @return false on failure
 bool i2cWrite( uint8_t I2cAddress, uint8_t Value) {
-	int Result = i2c_write_timeout_us( I2C_PORT, I2cAddress, &Value, 1, false, 1000 ); // Timeout 1000us for PCF8574 working with I2C at 50kHz
+	int Result = i2c_write_timeout_us( I2C_PORT, I2cAddress, &Value, 1, false, 600 );
 	if (1 == Result){
 		return true;
 	}
