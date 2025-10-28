@@ -38,9 +38,10 @@
 /// This definition contains a list of states of a finite state machine responsible for programming the DAC of a given PSU
 /// The state machine handles communication with two PCF8574 ICs and controls the notWR signal
 typedef enum {
-	STATE_IDLE,
-	STATE_SENDING_1ST_BYTE,
-	STATE_SENDING_2ND_BYTE,
+	STATE_IDLE					= 0,
+	STATE_PC_PCX_1ST_BYTE		= 1,
+	STATE_PC_PCX_2ND_BYTE		= 2,
+	STATE_PC_PCX_NOT_WR_SIGNAL	= 3,
 }StatesOfPsuFsm;
 
 /// This table shows what needs to be written to the PCF8574 expanders
@@ -81,7 +82,7 @@ static const uint8_t AddressTable[NUMBER_OF_POWER_SUPPLIES] = {
 //---------------------------------------------------------------------------------------------------
 
 /// @brief This variable is used in a simple state machine
-static volatile uint8_t StateCode;
+static volatile StatesOfPsuFsm StateCode;
 
 /// @brief This variable is used to monitor the I2C devices
 /// @todo exception handling
@@ -125,7 +126,7 @@ void initializePsuTalks(void){
 	gpio_set_dir(GPIO_FOR_NOT_WR_OUTPUT, GPIO_OUT);
 	gpio_put( GPIO_FOR_NOT_WR_OUTPUT, true );	// the idle state is high
 
-	StateCode = 0;
+	StateCode = STATE_IDLE;
 	atomic_store_explicit( &I2cConsecutiveErrors, 0, memory_order_release );
 
     gpio_init(GPIO_FOR_POWER_CONTACTOR);
@@ -151,7 +152,7 @@ void psuTalksTimeTick(void){
 		changeDebugPin2(true);
 
 		// take a new order
-		StateCode = 0;
+		StateCode = STATE_IDLE;
 		WorkingUnsignedArgument = prepareDataForTwoPcf8574( RequiredDacValue[atomic_load_explicit(&SelectedChannel, memory_order_acquire)],
 				AddressTable[atomic_load_explicit(&SelectedChannel, memory_order_acquire)] );
 		atomic_store_explicit( &OrderCode, ORDER_PROCESSING, memory_order_release );
@@ -160,11 +161,11 @@ void psuTalksTimeTick(void){
 	if (atomic_load_explicit( &OrderCode, memory_order_acquire ) == ORDER_PROCESSING){
 
 		switch( StateCode ){
-		case 0:
+		case STATE_IDLE:
 			IsI2cSuccess = i2cWrite( PCF8574_ADDRESS_2, (uint8_t)WorkingUnsignedArgument );
 			if (IsI2cSuccess){
 				atomic_store_explicit( &I2cConsecutiveErrors, 0, memory_order_release );
-				StateCode++;
+				StateCode = STATE_PC_PCX_1ST_BYTE;
 			}
 			else{
 				// Exception handling
@@ -172,17 +173,17 @@ void psuTalksTimeTick(void){
 					atomic_fetch_add_explicit( &I2cConsecutiveErrors, 1, memory_order_acq_rel );
 				}
 				else{
-					StateCode = 0;
+					StateCode = STATE_IDLE;
 					atomic_store_explicit( &OrderCode, ORDER_COMPLETED, memory_order_release );
 				}
 			}
 			break;
 
-		case 1:
+		case STATE_PC_PCX_1ST_BYTE:
 			IsI2cSuccess = i2cWrite( PCF8574_ADDRESS_1, (uint8_t)(WorkingUnsignedArgument >> 8) );
 			if (IsI2cSuccess){
 				atomic_store_explicit( &I2cConsecutiveErrors, 0, memory_order_release );
-				StateCode++;
+				StateCode = STATE_PC_PCX_2ND_BYTE;
 			}
 			else{
 				// Exception handling
@@ -190,22 +191,22 @@ void psuTalksTimeTick(void){
 					atomic_fetch_add_explicit( &I2cConsecutiveErrors, 1, memory_order_acq_rel );
 				}
 				else{
-					StateCode = 0;
+					StateCode = STATE_IDLE;
 					atomic_store_explicit( &OrderCode, ORDER_COMPLETED, memory_order_release );
 				}
 			}
 			break;
 
-		case 2:
+		case STATE_PC_PCX_2ND_BYTE:
 			// writing to ADC (signal /WR)
 			gpio_put( GPIO_FOR_NOT_WR_OUTPUT, false );
-			StateCode++;
+			StateCode = STATE_PC_PCX_NOT_WR_SIGNAL;
 			break;
 
-		case 3:
+		case STATE_PC_PCX_NOT_WR_SIGNAL:
 			gpio_put( GPIO_FOR_NOT_WR_OUTPUT, true );
 
-			StateCode = 0;
+			StateCode = STATE_IDLE;
 			atomic_store_explicit( &OrderCode, ORDER_COMPLETED, memory_order_release );
 			break;
 
