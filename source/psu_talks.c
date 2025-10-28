@@ -26,7 +26,7 @@
 
 #define GPIO_FOR_PSU_LOGIC_FEEDBACK	12
 
-#define I2C_CONSECUTIVE_ERRORS_LIMIT 255
+#define I2C_CONSECUTIVE_ERRORS_LIMIT 10
 
 #define DEBUG_DAC					0
 #define DEBUG_SAMPLES_DAC			100
@@ -38,24 +38,30 @@
 /// This definition contains a list of states of a finite state machine responsible for programming the DAC of a given PSU
 /// The state machine handles communication with two PCF8574 ICs and controls the notWR signal
 typedef enum {
-	STATE_IDLE					= 0,
-	STATE_PC_PCX_1ST_BYTE		= 1,
-	STATE_PC_PCX_2ND_BYTE		= 2,
-	STATE_PC_PCX_NOT_WR_SIGNAL	= 3,
-	STATE_ZASILANIE1_01_Z1		= 4,
-	STATE_ZASILANIE1_02_PCX0	= 5,
-	STATE_ZASILANIE1_03_MY		= 6,
-	STATE_ZASILANIE1_04_PCXFFF	= 7,
-	STATE_ZASILANIE1_05_MY		= 8,
-	STATE_ZASILANIE1_06_PC0		= 9,
-	STATE_ZASILANIE1_07_Z2		= 10,
-	STATE_ZASILANIE1_08_PCX0	= 11,
-	STATE_ZASILANIE1_09_MY		= 12,
-	STATE_ZASILANIE1_10_PCXFFF	= 13,
-	STATE_ZASILANIE1_11_MY		= 14,
-	STATE_ZASILANIE1_12_PC0		= 15,
-	STATE_ZASILANIE1_13_POWER1	= 16,
+	STATE_IDLE,
 
+	STATE_PC_PCX_START,				// setting a new value immediately
+	STATE_PC_PCX_1ST_BYTE,
+	STATE_PC_PCX_2ND_BYTE,
+	STATE_PC_PCX_NOT_WR_SIGNAL,
+
+	STATE_USTAW,					// setting a new value following a ramp
+
+	STATE_ZASILANIE1_01_Z1,
+	STATE_ZASILANIE1_02_PCX0,
+	STATE_ZASILANIE1_03_MY,
+	STATE_ZASILANIE1_04_PCXFFF,
+	STATE_ZASILANIE1_05_MY,
+	STATE_ZASILANIE1_06_PC0,
+	STATE_ZASILANIE1_07_Z2,
+	STATE_ZASILANIE1_08_PCX0,
+	STATE_ZASILANIE1_09_MY,
+	STATE_ZASILANIE1_10_PCXFFF,
+	STATE_ZASILANIE1_11_MY,
+	STATE_ZASILANIE1_12_PC0,
+	STATE_ZASILANIE1_13_POWER1,
+
+	STATE_ERROR_I2C
 }StatesOfPsuFsm;
 
 /// This table shows what needs to be written to the PCF8574 expanders
@@ -171,12 +177,14 @@ void psuTalksTimeTick(void){
 		WorkingUnsignedArgument = prepareDataForTwoPcf8574( RequiredDacValue[atomic_load_explicit(&SelectedChannel, memory_order_acquire)],
 				AddressTable[atomic_load_explicit(&SelectedChannel, memory_order_acquire)] );
 		atomic_store_explicit( &OrderCode, ORDER_PROCESSING, memory_order_release );
+
+		return;
 	}
 
 	if (atomic_load_explicit( &OrderCode, memory_order_acquire ) == ORDER_PROCESSING){
 
 		switch( StateCode ){
-		case STATE_IDLE:
+		case STATE_PC_PCX_START:
 			IsI2cSuccess = i2cWrite( PCF8574_ADDRESS_2, (uint8_t)WorkingUnsignedArgument );
 			if (IsI2cSuccess){
 				atomic_store_explicit( &I2cConsecutiveErrors, 0, memory_order_release );
@@ -188,7 +196,7 @@ void psuTalksTimeTick(void){
 					atomic_fetch_add_explicit( &I2cConsecutiveErrors, 1, memory_order_acq_rel );
 				}
 				else{
-					StateCode = STATE_IDLE;
+					StateCode = STATE_ERROR_I2C;
 					atomic_store_explicit( &OrderCode, ORDER_COMPLETED, memory_order_release );
 				}
 			}
@@ -206,7 +214,7 @@ void psuTalksTimeTick(void){
 					atomic_fetch_add_explicit( &I2cConsecutiveErrors, 1, memory_order_acq_rel );
 				}
 				else{
-					StateCode = STATE_IDLE;
+					StateCode = STATE_ERROR_I2C;
 					atomic_store_explicit( &OrderCode, ORDER_COMPLETED, memory_order_release );
 				}
 			}
@@ -223,6 +231,16 @@ void psuTalksTimeTick(void){
 
 			StateCode = STATE_IDLE;
 			atomic_store_explicit( &OrderCode, ORDER_COMPLETED, memory_order_release );
+			break;
+
+		case STATE_ERROR_I2C:
+
+			// todo Exception handling
+
+			StateCode = STATE_IDLE;
+			break;
+
+		case STATE_IDLE:
 			break;
 
 		default:

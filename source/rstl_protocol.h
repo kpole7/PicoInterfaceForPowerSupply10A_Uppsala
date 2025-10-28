@@ -51,6 +51,7 @@
 #define ORDER_PROCESSING			1
 #define ORDER_COMPLETED				2
 #define ORDER_COMMAND_PC			3
+#define ORDER_COMMAND_USTAW			4
 
 //---------------------------------------------------------------------------------------------------
 // Constants
@@ -76,6 +77,8 @@ typedef enum CommandErrorsEnum{
 	COMMAND__ADDRESS_INCORRECT_FORMAT= 16,
 	COMMAND__PC_INCORRECT_FORMAT	= 17,
 	COMMAND_I2C_ERROR				= 18,
+	COMMAND_USTAW_INCORRECT_FORMAT	= 19,
+	COMMAND_USTAW_INCORRECT_VALUE	= 20,
 } CommandErrors;
 
 //---------------------------------------------------------------------------------------------------

@@ -137,9 +137,10 @@ CommandErrors executeCommand(void){
 					if (FULL_SCALE_IN_DAC_UNITS < ValueInDacUnits){
 						ValueInDacUnits = FULL_SCALE_IN_DAC_UNITS;
 					}
-					if (atomic_load_explicit(&SelectedChannel, memory_order_acquire) < NUMBER_OF_POWER_SUPPLIES){
-						RequiredDacValue[atomic_load_explicit(&SelectedChannel, memory_order_acquire)] = (uint16_t)ValueInDacUnits;
-						RequiredAmperesValue[atomic_load_explicit(&SelectedChannel, memory_order_acquire)] = CommandFloatingPointArgument;
+					int TemporarySelectedChannel = atomic_load_explicit(&SelectedChannel, memory_order_acquire);
+					if (TemporarySelectedChannel < NUMBER_OF_POWER_SUPPLIES){
+						RequiredDacValue[TemporarySelectedChannel] = (uint16_t)ValueInDacUnits;
+						RequiredAmperesValue[TemporarySelectedChannel] = CommandFloatingPointArgument;
 					}
 					atomic_store_explicit( &OrderCode, ORDER_COMMAND_PC, memory_order_release );
 					transmitViaSerialPort(">");
@@ -158,13 +159,52 @@ CommandErrors executeCommand(void){
 		}
 		else{
 			// essential action
-			snprintf( ResponseBuffer, COMMAND_BUFFER_LENGTH-1, "%.2f\r\n>", RequiredAmperesValue[atomic_load_explicit(&SelectedChannel, memory_order_acquire)] );
+			snprintf( ResponseBuffer, COMMAND_BUFFER_LENGTH-1, "%.2f\r\n>",
+					RequiredAmperesValue[atomic_load_explicit(&SelectedChannel, memory_order_acquire)] );
 			transmitViaSerialPort( ResponseBuffer );
 		}
 
 		printf( "command <%s>  E=%d  ch=%u val=%f\n", NewCommand, ErrorCode,
 				(unsigned)atomic_load_explicit(&SelectedChannel, memory_order_acquire)+1,
 				RequiredAmperesValue[atomic_load_explicit(&SelectedChannel, memory_order_acquire)] );
+	}
+	else if (strstr(NewCommand, "USTAW") == NewCommand){ // "USTAW" command
+		float CommandFloatingPointArgument = NAN;
+		int16_t ValueInDacUnits = 22222; // value in the case of failure (out of range)
+		int Result = sscanf( NewCommand, "USTAW%f\r\n", &CommandFloatingPointArgument );
+		if ((Result != 1) || (NewCommand[CommadLength-2] != '\r') || (NewCommand[CommadLength-1] != '\n')){
+			ErrorCode = COMMAND_USTAW_INCORRECT_FORMAT;
+		}
+		else{
+			if ((CommandFloatingPointArgument < -10.0) || (CommandFloatingPointArgument > 10.0)){
+				ErrorCode = COMMAND_USTAW_INCORRECT_VALUE;
+			}
+			else{
+				if (atomic_load_explicit( &OrderCode, memory_order_acquire ) == ORDER_NONE){
+					// essential action
+					ValueInDacUnits = (int16_t)round(CommandFloatingPointArgument * AMPERES_TO_DAC_COEFFICIENT);
+					ValueInDacUnits += OFFSET_IN_DAC_UNITS;
+					if (ValueInDacUnits < 0){
+						ValueInDacUnits = 0;
+					}
+					if (FULL_SCALE_IN_DAC_UNITS < ValueInDacUnits){
+						ValueInDacUnits = FULL_SCALE_IN_DAC_UNITS;
+					}
+					int TemporarySelectedChannel = atomic_load_explicit(&SelectedChannel, memory_order_acquire);
+					if (TemporarySelectedChannel < NUMBER_OF_POWER_SUPPLIES){
+						RequiredDacValue[TemporarySelectedChannel] = (uint16_t)ValueInDacUnits;
+						RequiredAmperesValue[TemporarySelectedChannel] = CommandFloatingPointArgument;
+					}
+					atomic_store_explicit( &OrderCode, ORDER_COMMAND_USTAW, memory_order_release );
+					transmitViaSerialPort(">");
+				}
+				else{
+					ErrorCode = COMMAND_I2C_ERROR;
+				}
+			}
+		}
+
+		printf( "command <%s>  E=%d  %.3f > %d\n", NewCommand, ErrorCode, CommandFloatingPointArgument, ValueInDacUnits );
 	}
 	else if (strstr(NewCommand, "Z") == NewCommand){ // "Select channel" command
 		unsigned TemporaryChannel;
