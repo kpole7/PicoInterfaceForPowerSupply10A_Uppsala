@@ -18,9 +18,9 @@
 #endif
 
 
-#define TIMER_INTERRUPT_INTERVAL_US	390
+#define TIMER_INTERRUPT_INTERVAL_US	600
 
-#define TIME_DIVIDER_ADC			40
+#define TIME_DIVIDER_ADC			25
 
 
 //---------------------------------------------------------------------------------------------------

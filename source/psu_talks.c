@@ -173,7 +173,7 @@ void psuTalksTimeTick(void){
 		changeDebugPin2(true);
 
 		// take a new order
-		StateCode = STATE_IDLE;
+		StateCode = STATE_PC_PCX_START;
 		WorkingUnsignedArgument = prepareDataForTwoPcf8574( RequiredDacValue[atomic_load_explicit(&SelectedChannel, memory_order_acquire)],
 				AddressTable[atomic_load_explicit(&SelectedChannel, memory_order_acquire)] );
 		atomic_store_explicit( &OrderCode, ORDER_PROCESSING, memory_order_release );
