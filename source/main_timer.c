@@ -22,11 +22,6 @@
 
 #define TIME_DIVIDER_ADC			40
 
-//---------------------------------------------------------------------------------------------------
-// Global variables
-//---------------------------------------------------------------------------------------------------
-
-atomic_int TimeTickTokenHead;
 
 //---------------------------------------------------------------------------------------------------
 // Function prototypes
@@ -55,7 +50,7 @@ static int64_t timerInterruptHandler(alarm_id_t id, void *user_data){
 		getVoltageSamples();
 	}
 
-	atomic_fetch_add_explicit( &TimeTickTokenHead, 1, memory_order_acq_rel );
+	psuTalksTimeTick();
 
 	// timer restart
 	return TIMER_INTERRUPT_INTERVAL_US;
