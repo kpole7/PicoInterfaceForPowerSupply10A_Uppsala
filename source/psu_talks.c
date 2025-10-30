@@ -170,13 +170,13 @@ void psuTalksTimeTick(void){
 	static int16_t DebuggingI2cData;
 	bool IsI2cSuccess;
 
-	changeDebugPin1(true);
-	changeDebugPin1(false);
-	changeDebugPin2(false);
+//	changeDebugPin1(true);
+//	changeDebugPin1(false);
+//	changeDebugPin2(false);
 
 	if (atomic_load_explicit( &OrderCode, memory_order_acquire ) == ORDER_COMMAND_PC){
 
-		changeDebugPin2(true);
+//		changeDebugPin2(true);
 
 		// take a new order
 		StateCode = STATE_PC_PCX_START;
@@ -252,8 +252,11 @@ void psuTalksTimeTick(void){
 			StateCode = STATE_IDLE;
 			atomic_store_explicit( &OrderCode, ORDER_COMPLETED, memory_order_release );
 
+			changeDebugPin1(true);
+
 			printf( "%12llu  i2c\t%d\n", time_us_64(), DebuggingI2cData );
 
+			changeDebugPin1(false);		// measured time = 150 us;  2025-10-30
 
 			break;
 

@@ -10,6 +10,7 @@
 #include "hardware/i2c.h"
 
 #include "i2c_outputs.h"
+#include "debugging.h"
 
 //---------------------------------------------------------------------------------------------------
 // Macro directives
@@ -37,7 +38,13 @@ void initializeI2cOutputs(void){
 /// @return true on success
 /// @return false on failure
 bool i2cWrite( uint8_t I2cAddress, uint8_t Value) {
+
+	changeDebugPin2(true);
+
 	int Result = i2c_write_timeout_us( I2C_PORT, I2cAddress, &Value, 1, false, 600 );
+
+	changeDebugPin2(false); // measured time = 420 us;  2025-10-30
+
 	if (1 == Result){
 		return true;
 	}
