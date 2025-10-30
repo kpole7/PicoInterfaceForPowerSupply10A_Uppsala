@@ -1,0 +1,14 @@
+2025-10-27, 13:10
+
+czas trwania przerwania UART = 13 us max.
+
+czas trwania przerwania timera = 16 us max.
+
+czas trwania pętli głównej = 750 us max.  (na końcu pętli głównej dodano sleep 1ms na czas tego testu)
+
+okres "TimeTick" = 390 us  (brak aktywności użytkownika)
+
+
+
+
+

@@ -1,0 +1,13 @@
+2025-10-24
+Uszkodzona płytka zasilacza "8", adres 0x00
+
+Opis uszkodzenia:
+Z1
+PC3 - prąd nie płynie.
+
+Reszta działała.
+
+
+Płytkę zasilacza "8" zamieniono na "6".
+Po zamianie płytek wszystko działa.
+
