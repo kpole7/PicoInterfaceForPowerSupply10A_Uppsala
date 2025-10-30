@@ -112,7 +112,7 @@ CommandErrors executeCommand(void){
 				ErrorCode = COMMAND_I2C_ERROR;
 			}
 		}
-		printf( "command <%s> E=%d ch=%u %04X\n", NewCommand, ErrorCode,
+		printf( "cmd PCX\tE=%d\tch=%u\t0x%04X\n", ErrorCode,
 				(unsigned)atomic_load_explicit(&SelectedChannel, memory_order_acquire)+1, DacValue );
 	}
 	else if (strstr(NewCommand, "PC") == NewCommand){ // "Program current" command
@@ -150,8 +150,8 @@ CommandErrors executeCommand(void){
 				}
 			}
 		}
-
-		printf( "command <%s>  E=%d  %.3f > %d\n", NewCommand, ErrorCode, CommandFloatingPointArgument, ValueInDacUnits );
+		printf( "cmd PC\tE=%d\tch=%u\t0x%04X\n", ErrorCode,
+				(unsigned)atomic_load_explicit(&SelectedChannel, memory_order_acquire)+1, ValueInDacUnits );
 	}
 	else if (strstr(NewCommand, "?PC") == NewCommand){ // "Get set-point value of current" command
 		if ((NewCommand[CommadLength-2] != '\r') || (NewCommand[CommadLength-1] != '\n')){
@@ -163,10 +163,9 @@ CommandErrors executeCommand(void){
 					RequiredAmperesValue[atomic_load_explicit(&SelectedChannel, memory_order_acquire)] );
 			transmitViaSerialPort( ResponseBuffer );
 		}
-
-		printf( "command <%s>  E=%d  ch=%u val=%f\n", NewCommand, ErrorCode,
+		printf( "cmd ?PC\tE=%d\tch=%u\t0x%04X\n", ErrorCode,
 				(unsigned)atomic_load_explicit(&SelectedChannel, memory_order_acquire)+1,
-				RequiredAmperesValue[atomic_load_explicit(&SelectedChannel, memory_order_acquire)] );
+				RequiredDacValue[atomic_load_explicit(&SelectedChannel, memory_order_acquire)] );
 	}
 	else if (strstr(NewCommand, "USTAW") == NewCommand){ // "USTAW" command
 		float CommandFloatingPointArgument = NAN;
@@ -203,8 +202,8 @@ CommandErrors executeCommand(void){
 				}
 			}
 		}
-
-		printf( "command <%s>  E=%d  %.3f > %d\n", NewCommand, ErrorCode, CommandFloatingPointArgument, ValueInDacUnits );
+		printf( "cmd ust\tE=%d\tch=%u\t0x%04X\n", ErrorCode,
+				(unsigned)atomic_load_explicit(&SelectedChannel, memory_order_acquire)+1, ValueInDacUnits );
 	}
 	else if (strstr(NewCommand, "Z") == NewCommand){ // "Select channel" command
 		unsigned TemporaryChannel;
@@ -222,8 +221,7 @@ CommandErrors executeCommand(void){
 				transmitViaSerialPort(">");
 			}
 		}
-
-		printf( "command <%s>  E=%d  ch=%u\n", NewCommand, ErrorCode,
+		printf( "cmd Z\tE=%d\tch=%u\n", ErrorCode,
 				(unsigned)atomic_load_explicit(&SelectedChannel, memory_order_acquire)+1 );
 	}
 	else if (strstr(NewCommand, "?Z") == NewCommand){ // "Get selected channel number" command
@@ -236,8 +234,7 @@ CommandErrors executeCommand(void){
 					(unsigned)(atomic_load_explicit(&SelectedChannel, memory_order_acquire)+1) );
 			transmitViaSerialPort( ResponseBuffer );
 		}
-
-		printf( "command <%s>  E=%d  ch=%u\n", NewCommand, ErrorCode,
+		printf( "cmd ?Z\tE=%d\tch=%u\n", ErrorCode,
 				(unsigned)atomic_load_explicit(&SelectedChannel, memory_order_acquire)+1 );
 	}
 	else if (strstr(NewCommand, "POWER") == NewCommand){ // "Switch power on/off" command
@@ -262,8 +259,14 @@ CommandErrors executeCommand(void){
 				transmitViaSerialPort(">");
 			}
 		}
-
-		printf( "command <%s>  E=%d  Arg=%u\n", NewCommand, ErrorCode, TemporaryPowerArgument );
+		if (IsMainContactorStateOn){
+			printf( "cmd pow\tE=%d\tch=%u\tpower on\n", ErrorCode,
+					(unsigned)atomic_load_explicit(&SelectedChannel, memory_order_acquire)+1 );
+		}
+		else{
+			printf( "cmd pow\tE=%d\tch=%u\tpower off\n", ErrorCode,
+					(unsigned)atomic_load_explicit(&SelectedChannel, memory_order_acquire)+1 );
+		}
 	}
 	else if (strstr(NewCommand, "?POWER") == NewCommand){ // "Get state of power switch" command
 		if ((NewCommand[CommadLength-2] != '\r') || (NewCommand[CommadLength-1] != '\n')){
@@ -278,8 +281,14 @@ CommandErrors executeCommand(void){
 				transmitViaSerialPort( "0\r\n>" );
 			}
 		}
-
-		printf( "command <%s>  E=%d  %c\n", NewCommand, ErrorCode, IsMainContactorStateOn?'1':'0' );
+		if (IsMainContactorStateOn){
+			printf( "cmd ?pw\tE=%d\tch=%u\tpower on\n", ErrorCode,
+					(unsigned)atomic_load_explicit(&SelectedChannel, memory_order_acquire)+1 );
+		}
+		else{
+			printf( "cmd ?pw\tE=%d\tch=%u\tpower off\n", ErrorCode,
+					(unsigned)atomic_load_explicit(&SelectedChannel, memory_order_acquire)+1 );
+		}
 	}
 	else if (strstr(NewCommand, "MC") == NewCommand){ // "Measure current" command
 		if ((NewCommand[CommadLength-2] != '\r') || (NewCommand[CommadLength-1] != '\n')){
@@ -291,8 +300,7 @@ CommandErrors executeCommand(void){
 					getVoltage( atomic_load_explicit(&SelectedChannel, memory_order_acquire)>0? 1 : 0 ) );
 			transmitViaSerialPort( ResponseBuffer );
 		}
-
-		printf( "command <%s>  E=%d  ch=%u\n", NewCommand, ErrorCode,
+		printf( "cmd MC\tE=%d\tch=%u\n", ErrorCode,
 				(unsigned)atomic_load_explicit(&SelectedChannel, memory_order_acquire)+1 );
 	}
 	else if (strstr(NewCommand, "MY") == NewCommand){ // "Get Sig2 value" command
@@ -310,13 +318,16 @@ CommandErrors executeCommand(void){
 				transmitViaSerialPort( "0\r\n>" );
 			}
 		}
-
-		printf( "command <%s>  E=%d  ch=%u Sig2=%c\n", NewCommand, ErrorCode,
+		printf( "cmd MY\tE=%d\tch=%u\tSig2=%c\n", ErrorCode,
 				(unsigned)atomic_load_explicit(&SelectedChannel, memory_order_acquire)+1, Sig2Value? '1':'0' );
 	}
 	else{
 		ErrorCode = COMMAND_UNKNOWN;
-		printf( "command <%s>  %d\n", NewCommand, ErrorCode );
+		printf( "cmd ???\t" );
+		for (int J=0; NewCommand[J] != 0; J++){
+			printf( "%c", (NewCommand[J] >= ' ')? NewCommand[J] : '~' );
+		}
+		printf( "\n" );
 	}
 	return ErrorCode;
 }
