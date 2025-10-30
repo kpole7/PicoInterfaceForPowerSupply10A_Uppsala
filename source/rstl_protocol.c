@@ -112,8 +112,9 @@ CommandErrors executeCommand(void){
 				ErrorCode = COMMAND_I2C_ERROR;
 			}
 		}
-		printf( "cmd PCX\tE=%d\tch=%u\t0x%04X\n", ErrorCode,
-				(unsigned)atomic_load_explicit(&SelectedChannel, memory_order_acquire)+1, DacValue );
+		printf( "cmd PCX\tE=%d\tch=%u\t%d\t0x%04X\n", ErrorCode,
+				(unsigned)atomic_load_explicit(&SelectedChannel, memory_order_acquire)+1,
+				DacValue-OFFSET_IN_DAC_UNITS, DacValue );
 	}
 	else if (strstr(NewCommand, "PC") == NewCommand){ // "Program current" command
 		float CommandFloatingPointArgument = NAN;
@@ -150,8 +151,9 @@ CommandErrors executeCommand(void){
 				}
 			}
 		}
-		printf( "cmd PC\tE=%d\tch=%u\t0x%04X\n", ErrorCode,
-				(unsigned)atomic_load_explicit(&SelectedChannel, memory_order_acquire)+1, ValueInDacUnits );
+		printf( "cmd PC\tE=%d\tch=%u\t%d\t0x%04X\n", ErrorCode,
+				(unsigned)atomic_load_explicit(&SelectedChannel, memory_order_acquire)+1,
+				ValueInDacUnits-OFFSET_IN_DAC_UNITS, ValueInDacUnits );
 	}
 	else if (strstr(NewCommand, "?PC") == NewCommand){ // "Get set-point value of current" command
 		if ((NewCommand[CommadLength-2] != '\r') || (NewCommand[CommadLength-1] != '\n')){

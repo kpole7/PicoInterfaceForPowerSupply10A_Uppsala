@@ -1,5 +1,7 @@
 /// @file psu_talks.c
 
+#include <stdio.h>
+#include <inttypes.h>
 #include "psu_talks.h"
 #include "i2c_outputs.h"
 #include "rstl_protocol.h"
@@ -165,6 +167,7 @@ void initializePsuTalks(void){
 /// @brief This function is called periodically by the time interrupt handler
 void psuTalksTimeTick(void){
 	static uint16_t WorkingUnsignedArgument;
+	static int16_t DebuggingI2cData;
 	bool IsI2cSuccess;
 
 	changeDebugPin1(true);
@@ -180,6 +183,7 @@ void psuTalksTimeTick(void){
 		WorkingUnsignedArgument = prepareDataForTwoPcf8574( RequiredDacValue[atomic_load_explicit(&SelectedChannel, memory_order_acquire)],
 				AddressTable[atomic_load_explicit(&SelectedChannel, memory_order_acquire)] );
 		atomic_store_explicit( &OrderCode, ORDER_PROCESSING, memory_order_release );
+		DebuggingI2cData = RequiredDacValue[atomic_load_explicit(&SelectedChannel, memory_order_acquire)] - OFFSET_FOR_DEBUGGING;
 
 		return;
 	}
@@ -247,6 +251,10 @@ void psuTalksTimeTick(void){
 
 			StateCode = STATE_IDLE;
 			atomic_store_explicit( &OrderCode, ORDER_COMPLETED, memory_order_release );
+
+			printf( "%12llu  i2c\t%d\n", time_us_64(), DebuggingI2cData );
+
+
 			break;
 
 		case STATE_SET_START:
