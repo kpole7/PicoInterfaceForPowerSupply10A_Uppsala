@@ -41,7 +41,18 @@ bool i2cWrite( uint8_t I2cAddress, uint8_t Value) {
 
 	changeDebugPin2(true);
 
+#if SIMULATE_HARDWARE_PSU == 0
+
 	int Result = i2c_write_timeout_us( I2C_PORT, I2cAddress, &Value, 1, false, 600 );
+
+#else
+
+    for (volatile uint32_t DebugCounter = 0; DebugCounter < 125000; DebugCounter++) {
+        __asm volatile("nop");
+	}
+	int Result = 1;
+
+#endif
 
 	changeDebugPin2(false); // measured time = 420 us;  2025-10-30
 
