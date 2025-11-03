@@ -79,6 +79,7 @@ typedef enum CommandErrorsEnum{
 	COMMAND_I2C_ERROR				= 18,
 	COMMAND_SET_INCORRECT_FORMAT	= 19,
 	COMMAND_SET_INCORRECT_VALUE		= 20,
+	COMMAND_VERSION_INCORRECT_FORMAT= 21,
 } CommandErrors;
 
 //---------------------------------------------------------------------------------------------------

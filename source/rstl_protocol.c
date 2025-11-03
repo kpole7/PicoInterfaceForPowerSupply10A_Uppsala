@@ -323,6 +323,19 @@ CommandErrors executeCommand(void){
 		printf( "cmd MY\tE=%d\tch=%u\tSig2=%c\n", ErrorCode,
 				(unsigned)atomic_load_explicit(&SelectedChannel, memory_order_acquire)+1, Sig2Value? '1':'0' );
 	}
+	else if (strstr(NewCommand, "WERSJA") == NewCommand){ // "Get info about the current version" command
+		if ((NewCommand[CommadLength-2] != '\r') || (NewCommand[CommadLength-1] != '\n')){
+			ErrorCode = COMMAND_VERSION_INCORRECT_FORMAT;
+		}
+		else{
+			// essential action
+			snprintf( ResponseBuffer, COMMAND_BUFFER_LENGTH-1, "wersja " __DATE__ ", " __TIME__ "\r\n>" );
+			transmitViaSerialPort( ResponseBuffer );
+		}
+		printf( "cmd wer\tE=%d\tch=%u\t%s\n", ErrorCode,
+				(unsigned)atomic_load_explicit(&SelectedChannel, memory_order_acquire)+1,
+				"wersja " __DATE__ ", " __TIME__ );
+	}
 	else{
 		ErrorCode = COMMAND_UNKNOWN;
 		printf( "cmd ???\t" );
