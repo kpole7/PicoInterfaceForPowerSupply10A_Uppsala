@@ -12,26 +12,36 @@
 //---------------------------------------------------------------------------------------------------
 
 /// The 1'st PCF8574 address (A0=A1=A2=high)
-#define PCF8574_ADDRESS_2			0x27
+#define PCF8574_ADDRESS_2				0x27
 
 /// The 2'nd PCF8574 address (A0=high; A1=A2=low)
-#define PCF8574_ADDRESS_1			0x21
+#define PCF8574_ADDRESS_1				0x21
 
-#define DAC_NUMBER_OF_BITS			12
+#define DAC_NUMBER_OF_BITS				12
 
-#define PSU_ADDRESS_BITS			3
+#define PSU_ADDRESS_BITS				3
 
-#define GPIO_FOR_NOT_WR_OUTPUT		10
+#define GPIO_FOR_NOT_WR_OUTPUT			10
 
 // Output port for switching the power contactor on/off
-#define GPIO_FOR_POWER_CONTACTOR	11
+#define GPIO_FOR_POWER_CONTACTOR		11
 
-#define GPIO_FOR_PSU_LOGIC_FEEDBACK	12
+#define GPIO_FOR_PSU_LOGIC_FEEDBACK		12
 
-#define I2C_CONSECUTIVE_ERRORS_LIMIT 10
+#define I2C_CONSECUTIVE_ERRORS_LIMIT	10
 
-#define DEBUG_DAC					0
-#define DEBUG_SAMPLES_DAC			100
+/// This constant is used to define the ramp according to which the current changes occur.
+/// The output current changes more slowly in this region:
+/// OFFSET_IN_DAC_UNITS-NEAR_ZERO_REGION_IN_DAC_UNITS ... OFFSET_IN_DAC_UNITS+NEAR_ZERO_REGION_IN_DAC_UNITS
+#define NEAR_ZERO_REGION_IN_DAC_UNITS	5
+
+/// This constant defines the maximum rate of change of current.
+/// 1 DAC unit = aprox. 0.05% of 10A
+#define FAST_RAMP_STEP_IN_DAC_UNITS		100
+
+#define FAST_RAMP_DELAY					10
+
+#define SLOW_RAMP_DELAY					200
 
 //---------------------------------------------------------------------------------------------------
 // Local constants
@@ -52,19 +62,19 @@ typedef enum {
 	STATE_SET_2ND_BYTE,
 	STATE_SET_NOT_WR_SIGNAL,
 
-	STATE_POWER1_01_Z1,
-	STATE_POWER1_02_PCX0,
-	STATE_POWER1_03_MY,
-	STATE_POWER1_04_PCXFFF,
-	STATE_POWER1_05_MY,
-	STATE_POWER1_06_PC0,
-	STATE_POWER1_07_Z2,
-	STATE_POWER1_08_PCX0,
-	STATE_POWER1_09_MY,
-	STATE_POWER1_10_PCXFFF,
-	STATE_POWER1_11_MY,
-	STATE_POWER1_12_PC0,
-	STATE_POWER1_13_POWER1,
+	STATE_POWER1_TEST_000_START,
+	STATE_POWER1_TEST_000_1ST,
+	STATE_POWER1_TEST_000_2ND,
+	STATE_POWER1_TEST_000_NOT_WR,
+	STATE_POWER1_TEST_000_READ,
+	STATE_POWER1_TEST_FFF_1ST,
+	STATE_POWER1_TEST_FFF_2ND,
+	STATE_POWER1_TEST_FFF_NOT_WR,
+	STATE_POWER1_TEST_FFF_READ,
+	STATE_POWER1_PC0_1ST,
+	STATE_POWER1_PC0_2ND,
+	STATE_POWER1_PC0_NOT_WR,
+	STATE_POWER1_CONTACTOR,
 
 	STATE_ERROR_I2C
 }StatesOfPsuFsm;
@@ -127,6 +137,17 @@ static atomic_int I2cConsecutiveErrors;
 ///         the higher byte is to be written to PCF8574 with I2C address PCF8574_ADDRESS_1
 static uint16_t prepareDataForTwoPcf8574( uint16_t DacRawValue, uint8_t AddressOfPsu );
 
+/// @brief This function calculates a new setpoint value for the DAC, that corresponds to a single step of the ramp
+/// If the ramp crosses zero, it may require additional slowdown.
+/// The true zero level is an analog value, so thresholds slightly below zero and slightly above zero are necessary.
+/// We never know exactly what digital value corresponds to analog zero (furthermore, a difference should be made between "0+" and "0-").
+/// @param ResultDacValue points to a result value that is the DAC setpoint following the ramp towards the TargetValue
+/// @param TargetValue user-specified value converted to DAC setting
+/// @param PresentValue the last setting written to the DAC
+/// @return true if the ramp crosses one of the two boundaries of the zero region
+/// @return false in the opposite case
+static bool calculateRampStep( uint16_t *ResultDacValue, uint16_t TargetValue, uint16_t PresentValue );
+
 //---------------------------------------------------------------------------------------------------
 // Function definitions
 //---------------------------------------------------------------------------------------------------
@@ -166,8 +187,9 @@ void initializePsuTalks(void){
 
 /// @brief This function is called periodically by the time interrupt handler
 void psuTalksTimeTick(void){
-	static uint16_t WorkingUnsignedArgument;
+	static uint16_t WorkingDataForTwoPcf8574;
 	static int16_t DebuggingI2cData;
+	static uint32_t RampDelay;
 	bool IsI2cSuccess;
 
 //	changeDebugPin1(true);
@@ -180,22 +202,51 @@ void psuTalksTimeTick(void){
 
 		// take a new order
 		StateCode = STATE_PC_PCX_START;
-		WorkingUnsignedArgument = prepareDataForTwoPcf8574( RequiredDacValue[atomic_load_explicit(&SelectedChannel, memory_order_acquire)],
-				AddressTable[atomic_load_explicit(&SelectedChannel, memory_order_acquire)] );
+		int TemporarySelectedChannel = atomic_load_explicit(&SelectedChannel, memory_order_acquire);
+		WrittenRequiredValue[TemporarySelectedChannel] = RequiredDacValue[TemporarySelectedChannel];
+		WorkingDataForTwoPcf8574 = prepareDataForTwoPcf8574( RequiredDacValue[TemporarySelectedChannel],
+				AddressTable[TemporarySelectedChannel] );
 		atomic_store_explicit( &OrderCode, ORDER_PROCESSING, memory_order_release );
-		DebuggingI2cData = RequiredDacValue[atomic_load_explicit(&SelectedChannel, memory_order_acquire)] - OFFSET_FOR_DEBUGGING;
+		DebuggingI2cData = RequiredDacValue[TemporarySelectedChannel] - OFFSET_FOR_DEBUGGING;
 
 		return;
 	}
 
 	if (atomic_load_explicit( &OrderCode, memory_order_acquire ) == ORDER_COMMAND_SET){
 
-		changeDebugPin2(true);
+//		changeDebugPin2(true);
 
 		// take a new order
 		StateCode = STATE_SET_START;
-		WorkingUnsignedArgument = prepareDataForTwoPcf8574( RequiredDacValue[atomic_load_explicit(&SelectedChannel, memory_order_acquire)],
-				AddressTable[atomic_load_explicit(&SelectedChannel, memory_order_acquire)] );
+		RampDelay = 0;
+		int TemporarySelectedChannel = atomic_load_explicit(&SelectedChannel, memory_order_acquire);
+		uint16_t TemporaryRequiredDacValue;
+
+		calculateRampStep( &TemporaryRequiredDacValue, RequiredDacValue[TemporarySelectedChannel],
+				WrittenRequiredValue[TemporarySelectedChannel] );
+
+		WrittenRequiredValue[TemporarySelectedChannel] = TemporaryRequiredDacValue;
+		WorkingDataForTwoPcf8574 = prepareDataForTwoPcf8574( TemporaryRequiredDacValue, AddressTable[TemporarySelectedChannel] );
+		atomic_store_explicit( &OrderCode, ORDER_PROCESSING, memory_order_release );
+
+		return;
+	}
+
+	if (atomic_load_explicit( &OrderCode, memory_order_acquire ) == ORDER_COMMAND_POWER_ON){
+
+//		changeDebugPin2(true);
+
+		// take a new order
+		StateCode = STATE_SET_START;
+		RampDelay = 0;
+		int TemporarySelectedChannel = atomic_load_explicit(&SelectedChannel, memory_order_acquire);
+		uint16_t TemporaryRequiredDacValue;
+
+		calculateRampStep( &TemporaryRequiredDacValue, RequiredDacValue[TemporarySelectedChannel],
+				WrittenRequiredValue[TemporarySelectedChannel] );
+
+		WrittenRequiredValue[TemporarySelectedChannel] = TemporaryRequiredDacValue;
+		WorkingDataForTwoPcf8574 = prepareDataForTwoPcf8574( TemporaryRequiredDacValue, AddressTable[TemporarySelectedChannel] );
 		atomic_store_explicit( &OrderCode, ORDER_PROCESSING, memory_order_release );
 
 		return;
@@ -205,7 +256,7 @@ void psuTalksTimeTick(void){
 
 		switch( StateCode ){
 		case STATE_PC_PCX_START:
-			IsI2cSuccess = i2cWrite( PCF8574_ADDRESS_2, (uint8_t)WorkingUnsignedArgument );
+			IsI2cSuccess = i2cWrite( PCF8574_ADDRESS_2, (uint8_t)WorkingDataForTwoPcf8574 );
 			if (IsI2cSuccess){
 				atomic_store_explicit( &I2cConsecutiveErrors, 0, memory_order_release );
 				StateCode = STATE_PC_PCX_1ST_BYTE;
@@ -223,7 +274,7 @@ void psuTalksTimeTick(void){
 			break;
 
 		case STATE_PC_PCX_1ST_BYTE:
-			IsI2cSuccess = i2cWrite( PCF8574_ADDRESS_1, (uint8_t)(WorkingUnsignedArgument >> 8) );
+			IsI2cSuccess = i2cWrite( PCF8574_ADDRESS_1, (uint8_t)(WorkingDataForTwoPcf8574 >> 8) );
 			if (IsI2cSuccess){
 				atomic_store_explicit( &I2cConsecutiveErrors, 0, memory_order_release );
 				StateCode = STATE_PC_PCX_2ND_BYTE;
@@ -261,25 +312,30 @@ void psuTalksTimeTick(void){
 			break;
 
 		case STATE_SET_START:
-			IsI2cSuccess = i2cWrite( PCF8574_ADDRESS_2, (uint8_t)WorkingUnsignedArgument );
-			if (IsI2cSuccess){
-				atomic_store_explicit( &I2cConsecutiveErrors, 0, memory_order_release );
-				StateCode = STATE_SET_1ST_BYTE;
+			if (RampDelay > 0){
+				RampDelay--;
 			}
 			else{
-				// Exception handling
-				if (atomic_load_explicit( &I2cConsecutiveErrors, memory_order_acquire ) < I2C_CONSECUTIVE_ERRORS_LIMIT){
-					atomic_fetch_add_explicit( &I2cConsecutiveErrors, 1, memory_order_acq_rel );
+				IsI2cSuccess = i2cWrite( PCF8574_ADDRESS_2, (uint8_t)WorkingDataForTwoPcf8574 );
+				if (IsI2cSuccess){
+					atomic_store_explicit( &I2cConsecutiveErrors, 0, memory_order_release );
+					StateCode = STATE_SET_1ST_BYTE;
 				}
 				else{
-					StateCode = STATE_ERROR_I2C;
-					atomic_store_explicit( &OrderCode, ORDER_COMPLETED, memory_order_release );
+					// Exception handling
+					if (atomic_load_explicit( &I2cConsecutiveErrors, memory_order_acquire ) < I2C_CONSECUTIVE_ERRORS_LIMIT){
+						atomic_fetch_add_explicit( &I2cConsecutiveErrors, 1, memory_order_acq_rel );
+					}
+					else{
+						StateCode = STATE_ERROR_I2C;
+						atomic_store_explicit( &OrderCode, ORDER_COMPLETED, memory_order_release );
+					}
 				}
 			}
 			break;
 
 		case STATE_SET_1ST_BYTE:
-			IsI2cSuccess = i2cWrite( PCF8574_ADDRESS_1, (uint8_t)(WorkingUnsignedArgument >> 8) );
+			IsI2cSuccess = i2cWrite( PCF8574_ADDRESS_1, (uint8_t)(WorkingDataForTwoPcf8574 >> 8) );
 			if (IsI2cSuccess){
 				atomic_store_explicit( &I2cConsecutiveErrors, 0, memory_order_release );
 				StateCode = STATE_SET_2ND_BYTE;
@@ -305,8 +361,32 @@ void psuTalksTimeTick(void){
 		case STATE_SET_NOT_WR_SIGNAL:
 			gpio_put( GPIO_FOR_NOT_WR_OUTPUT, true );
 
-			StateCode = STATE_IDLE;
-			atomic_store_explicit( &OrderCode, ORDER_COMPLETED, memory_order_release );
+			int TemporarySelectedChannel = atomic_load_explicit(&SelectedChannel, memory_order_acquire);
+			if (RequiredDacValue[TemporarySelectedChannel] == WrittenRequiredValue[TemporarySelectedChannel]){
+				// The ramp is completed
+
+				StateCode = STATE_IDLE;
+				atomic_store_explicit( &OrderCode, ORDER_COMPLETED, memory_order_release );
+			}
+			else{
+				// The ramp is continued
+
+				StateCode = STATE_SET_START;
+				int TemporarySelectedChannel = atomic_load_explicit(&SelectedChannel, memory_order_acquire);
+				uint16_t TemporaryRequiredDacValue;
+
+				bool ZeroRegionCrossing = calculateRampStep( &TemporaryRequiredDacValue, RequiredDacValue[TemporarySelectedChannel],
+						WrittenRequiredValue[TemporarySelectedChannel] );
+
+				WrittenRequiredValue[TemporarySelectedChannel] = TemporaryRequiredDacValue;
+				WorkingDataForTwoPcf8574 = prepareDataForTwoPcf8574( TemporaryRequiredDacValue, AddressTable[TemporarySelectedChannel] );
+				if (ZeroRegionCrossing){
+					RampDelay = SLOW_RAMP_DELAY;
+				}
+				else{
+					RampDelay = FAST_RAMP_DELAY;
+				}
+			}
 			break;
 
 		case STATE_ERROR_I2C:
@@ -333,4 +413,84 @@ void setMainContactorState( bool IsMainContactorStateOn ){
 bool getLogicFeedbackFromPsu( void ){
 	return gpio_get( GPIO_FOR_PSU_LOGIC_FEEDBACK );
 }
+
+static bool calculateRampStep( uint16_t *ResultDacValue, uint16_t TargetValue, uint16_t PresentValue ){
+	bool RampCrossesZeroRegionBorder = false;
+	uint16_t TemporaryRequiredDacValue = TargetValue;
+	if (PresentValue > (OFFSET_IN_DAC_UNITS + NEAR_ZERO_REGION_IN_DAC_UNITS)){
+		if (TargetValue < (OFFSET_IN_DAC_UNITS + NEAR_ZERO_REGION_IN_DAC_UNITS)){
+			//			                <------<                   the arrow indicates the present value and the required value
+			//			-----------|---0---|----------------> I
+			// The ramp may need to be slowed down
+			TemporaryRequiredDacValue = (OFFSET_IN_DAC_UNITS + NEAR_ZERO_REGION_IN_DAC_UNITS);
+			RampCrossesZeroRegionBorder = true;
+		}
+		else{
+			//			                       <------<
+			//			                       >------>
+			//			-----------|---0---|----------------> I
+			// do not slow down
+		}
+	}
+	else if (PresentValue < (OFFSET_IN_DAC_UNITS - NEAR_ZERO_REGION_IN_DAC_UNITS)){
+		if (TargetValue   > (OFFSET_IN_DAC_UNITS - NEAR_ZERO_REGION_IN_DAC_UNITS)){
+			//			       >------>
+			//			-----------|---0---|----------------> I
+			// The ramp may need to be slowed down
+			TemporaryRequiredDacValue = (OFFSET_IN_DAC_UNITS - NEAR_ZERO_REGION_IN_DAC_UNITS);
+			RampCrossesZeroRegionBorder = true;
+		}
+		else{
+			//			 <------<
+			//			 >------>
+			//			-----------|---0---|----------------> I
+			// do not slow down
+		}
+	}
+	else{
+		if ((PresentValue <= (OFFSET_IN_DAC_UNITS + NEAR_ZERO_REGION_IN_DAC_UNITS)) &&
+				(TargetValue > (OFFSET_IN_DAC_UNITS + NEAR_ZERO_REGION_IN_DAC_UNITS)))
+		{
+			//			              >------>
+			//			-----------|---0---|----------------> I
+			// The ramp may need to be slowed down
+			TemporaryRequiredDacValue = (OFFSET_IN_DAC_UNITS + NEAR_ZERO_REGION_IN_DAC_UNITS);
+			RampCrossesZeroRegionBorder = true;
+		}
+		else if ((PresentValue >= (OFFSET_IN_DAC_UNITS - NEAR_ZERO_REGION_IN_DAC_UNITS)) &&
+				(TargetValue < (OFFSET_IN_DAC_UNITS - NEAR_ZERO_REGION_IN_DAC_UNITS)))
+		{
+			//			        <------<
+			//			-----------|---0---|----------------> I
+			// The ramp may need to be slowed down
+			TemporaryRequiredDacValue = (OFFSET_IN_DAC_UNITS - NEAR_ZERO_REGION_IN_DAC_UNITS);
+			RampCrossesZeroRegionBorder = true;
+		}
+		else{
+			//			             <--<
+			//			             >-->
+			//			-----------|---0---|----------------> I
+			// The ramp may need to be slowed down
+			RampCrossesZeroRegionBorder = true;
+		}
+	}
+
+	// calculate a single step of the ramp
+	if (TemporaryRequiredDacValue >= PresentValue){
+		if (TemporaryRequiredDacValue > PresentValue + FAST_RAMP_STEP_IN_DAC_UNITS){
+			TemporaryRequiredDacValue = PresentValue + FAST_RAMP_STEP_IN_DAC_UNITS;
+		}
+	}
+	else{
+		if (TemporaryRequiredDacValue < PresentValue - FAST_RAMP_STEP_IN_DAC_UNITS){
+			TemporaryRequiredDacValue = PresentValue - FAST_RAMP_STEP_IN_DAC_UNITS;
+		}
+	}
+
+	*ResultDacValue = TemporaryRequiredDacValue;
+	return RampCrossesZeroRegionBorder;
+}
+
+
+
 

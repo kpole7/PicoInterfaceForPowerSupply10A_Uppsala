@@ -15,13 +15,6 @@
 
 #define COMMAND_MINIMAL_LENGTH			3
 
-#define INITIAL_DAC_VALUE				0x800
-
-#define AMPERES_TO_DAC_COEFFICIENT		(4096.0 / 20.0)
-#define DAC_TO_AMPERES_COEFFICIENT		(20.0 / 4096.0)
-#define OFFSET_IN_DAC_UNITS				2048
-#define FULL_SCALE_IN_DAC_UNITS			4095	// 4095 = 0xFFF
-
 //---------------------------------------------------------------------------------------------------
 // Global variables
 //---------------------------------------------------------------------------------------------------
@@ -38,8 +31,11 @@ atomic_int SelectedChannel;
 /// The variable can be modified in the main loop and in the timer interrupt handler
 atomic_int OrderCode;
 
-/// @brief User's set-point value for a DAC
+/// @brief User's set-point value for the DAC (number from 0 to 0xFFF)
 volatile uint16_t RequiredDacValue[NUMBER_OF_POWER_SUPPLIES];
+
+/// @brief Set-point value for the DAC written to the DAC (number from 0 to 0xFFF)
+volatile uint16_t WrittenRequiredValue[NUMBER_OF_POWER_SUPPLIES];
 
 //---------------------------------------------------------------------------------------------------
 // Local variables
@@ -59,6 +55,7 @@ void initializeRstlProtocol(void){
 	atomic_store_explicit( &SelectedChannel, 0, memory_order_release );
 	for (uint8_t J = 0; J < NUMBER_OF_POWER_SUPPLIES; J++){
 		RequiredDacValue[J] = INITIAL_DAC_VALUE;
+		WrittenRequiredValue[J] = INITIAL_DAC_VALUE;
 		RequiredAmperesValue[J] = 0.0;
 	}
 	atomic_store_explicit( &OrderCode, ORDER_NONE, memory_order_release );

@@ -52,6 +52,14 @@
 #define ORDER_COMPLETED				2
 #define ORDER_COMMAND_PC			3
 #define ORDER_COMMAND_SET			4
+#define ORDER_COMMAND_POWER_ON		5
+
+#define INITIAL_DAC_VALUE				0x800
+
+#define AMPERES_TO_DAC_COEFFICIENT		(4096.0 / 20.0)
+#define DAC_TO_AMPERES_COEFFICIENT		(20.0 / 4096.0)
+#define OFFSET_IN_DAC_UNITS				2048
+#define FULL_SCALE_IN_DAC_UNITS			4095	// 4095 = 0xFFF
 
 //---------------------------------------------------------------------------------------------------
 // Constants
@@ -100,6 +108,9 @@ extern atomic_int OrderCode;
 
 /// @brief Setpoint value for a DAC
 extern volatile uint16_t RequiredDacValue[NUMBER_OF_POWER_SUPPLIES];
+
+/// @brief Set-point value for the DAC written to the DAC
+extern volatile uint16_t WrittenRequiredValue[NUMBER_OF_POWER_SUPPLIES];
 
 //---------------------------------------------------------------------------------------------------
 // Function prototypes
