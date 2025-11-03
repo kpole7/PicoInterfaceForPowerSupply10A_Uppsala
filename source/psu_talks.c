@@ -187,24 +187,16 @@ void initializePsuTalks(void){
 
 /// @brief This function is called periodically by the time interrupt handler
 void psuTalksTimeTick(void){
-	static uint16_t WorkingDataForTwoPcf8574;
+	static uint16_t WorkingDataForTwoPcf8574[NUMBER_OF_POWER_SUPPLIES];
 	static int16_t DebuggingI2cData;
 	static uint32_t RampDelay;
 	bool IsI2cSuccess;
 
-//	changeDebugPin1(true);
-//	changeDebugPin1(false);
-//	changeDebugPin2(false);
-
 	if (atomic_load_explicit( &OrderCode, memory_order_acquire ) == ORDER_COMMAND_PC){
-
-//		changeDebugPin2(true);
-
-		// take a new order
 		StateCode = STATE_PC_PCX_START;
 		int TemporarySelectedChannel = atomic_load_explicit(&SelectedChannel, memory_order_acquire);
 		WrittenRequiredValue[TemporarySelectedChannel] = RequiredDacValue[TemporarySelectedChannel];
-		WorkingDataForTwoPcf8574 = prepareDataForTwoPcf8574( RequiredDacValue[TemporarySelectedChannel],
+		WorkingDataForTwoPcf8574[TemporarySelectedChannel] = prepareDataForTwoPcf8574( RequiredDacValue[TemporarySelectedChannel],
 				AddressTable[TemporarySelectedChannel] );
 		atomic_store_explicit( &OrderCode, ORDER_PROCESSING, memory_order_release );
 		DebuggingI2cData = RequiredDacValue[TemporarySelectedChannel] - OFFSET_FOR_DEBUGGING;
@@ -213,10 +205,6 @@ void psuTalksTimeTick(void){
 	}
 
 	if (atomic_load_explicit( &OrderCode, memory_order_acquire ) == ORDER_COMMAND_SET){
-
-//		changeDebugPin2(true);
-
-		// take a new order
 		StateCode = STATE_SET_START;
 		RampDelay = 0;
 		int TemporarySelectedChannel = atomic_load_explicit(&SelectedChannel, memory_order_acquire);
@@ -226,18 +214,14 @@ void psuTalksTimeTick(void){
 				WrittenRequiredValue[TemporarySelectedChannel] );
 
 		WrittenRequiredValue[TemporarySelectedChannel] = TemporaryRequiredDacValue;
-		WorkingDataForTwoPcf8574 = prepareDataForTwoPcf8574( TemporaryRequiredDacValue, AddressTable[TemporarySelectedChannel] );
+		WorkingDataForTwoPcf8574[TemporarySelectedChannel] = prepareDataForTwoPcf8574( TemporaryRequiredDacValue, AddressTable[TemporarySelectedChannel] );
 		atomic_store_explicit( &OrderCode, ORDER_PROCESSING, memory_order_release );
 
 		return;
 	}
 
 	if (atomic_load_explicit( &OrderCode, memory_order_acquire ) == ORDER_COMMAND_POWER_ON){
-
-//		changeDebugPin2(true);
-
-		// take a new order
-		StateCode = STATE_SET_START;
+		StateCode = STATE_POWER1_TEST_000_START;
 		RampDelay = 0;
 		int TemporarySelectedChannel = atomic_load_explicit(&SelectedChannel, memory_order_acquire);
 		uint16_t TemporaryRequiredDacValue;
@@ -246,17 +230,19 @@ void psuTalksTimeTick(void){
 				WrittenRequiredValue[TemporarySelectedChannel] );
 
 		WrittenRequiredValue[TemporarySelectedChannel] = TemporaryRequiredDacValue;
-		WorkingDataForTwoPcf8574 = prepareDataForTwoPcf8574( TemporaryRequiredDacValue, AddressTable[TemporarySelectedChannel] );
+		WorkingDataForTwoPcf8574[TemporarySelectedChannel] = prepareDataForTwoPcf8574( TemporaryRequiredDacValue, AddressTable[TemporarySelectedChannel] );
 		atomic_store_explicit( &OrderCode, ORDER_PROCESSING, memory_order_release );
 
 		return;
 	}
 
 	if (atomic_load_explicit( &OrderCode, memory_order_acquire ) == ORDER_PROCESSING){
+		int TemporarySelectedChannel;
 
 		switch( StateCode ){
 		case STATE_PC_PCX_START:
-			IsI2cSuccess = i2cWrite( PCF8574_ADDRESS_2, (uint8_t)WorkingDataForTwoPcf8574 );
+			TemporarySelectedChannel = atomic_load_explicit(&SelectedChannel, memory_order_acquire);
+			IsI2cSuccess = i2cWrite( PCF8574_ADDRESS_2, (uint8_t)WorkingDataForTwoPcf8574[TemporarySelectedChannel] );
 			if (IsI2cSuccess){
 				atomic_store_explicit( &I2cConsecutiveErrors, 0, memory_order_release );
 				StateCode = STATE_PC_PCX_1ST_BYTE;
@@ -274,7 +260,8 @@ void psuTalksTimeTick(void){
 			break;
 
 		case STATE_PC_PCX_1ST_BYTE:
-			IsI2cSuccess = i2cWrite( PCF8574_ADDRESS_1, (uint8_t)(WorkingDataForTwoPcf8574 >> 8) );
+			TemporarySelectedChannel = atomic_load_explicit(&SelectedChannel, memory_order_acquire);
+			IsI2cSuccess = i2cWrite( PCF8574_ADDRESS_1, (uint8_t)(WorkingDataForTwoPcf8574[TemporarySelectedChannel] >> 8) );
 			if (IsI2cSuccess){
 				atomic_store_explicit( &I2cConsecutiveErrors, 0, memory_order_release );
 				StateCode = STATE_PC_PCX_2ND_BYTE;
@@ -316,7 +303,8 @@ void psuTalksTimeTick(void){
 				RampDelay--;
 			}
 			else{
-				IsI2cSuccess = i2cWrite( PCF8574_ADDRESS_2, (uint8_t)WorkingDataForTwoPcf8574 );
+				TemporarySelectedChannel = atomic_load_explicit(&SelectedChannel, memory_order_acquire);
+				IsI2cSuccess = i2cWrite( PCF8574_ADDRESS_2, (uint8_t)WorkingDataForTwoPcf8574[TemporarySelectedChannel] );
 				if (IsI2cSuccess){
 					atomic_store_explicit( &I2cConsecutiveErrors, 0, memory_order_release );
 					StateCode = STATE_SET_1ST_BYTE;
@@ -335,7 +323,8 @@ void psuTalksTimeTick(void){
 			break;
 
 		case STATE_SET_1ST_BYTE:
-			IsI2cSuccess = i2cWrite( PCF8574_ADDRESS_1, (uint8_t)(WorkingDataForTwoPcf8574 >> 8) );
+			TemporarySelectedChannel = atomic_load_explicit(&SelectedChannel, memory_order_acquire);
+			IsI2cSuccess = i2cWrite( PCF8574_ADDRESS_1, (uint8_t)(WorkingDataForTwoPcf8574[TemporarySelectedChannel] >> 8) );
 			if (IsI2cSuccess){
 				atomic_store_explicit( &I2cConsecutiveErrors, 0, memory_order_release );
 				StateCode = STATE_SET_2ND_BYTE;
@@ -361,7 +350,7 @@ void psuTalksTimeTick(void){
 		case STATE_SET_NOT_WR_SIGNAL:
 			gpio_put( GPIO_FOR_NOT_WR_OUTPUT, true );
 
-			int TemporarySelectedChannel = atomic_load_explicit(&SelectedChannel, memory_order_acquire);
+			TemporarySelectedChannel = atomic_load_explicit(&SelectedChannel, memory_order_acquire);
 			if (RequiredDacValue[TemporarySelectedChannel] == WrittenRequiredValue[TemporarySelectedChannel]){
 				// The ramp is completed
 
@@ -369,17 +358,18 @@ void psuTalksTimeTick(void){
 				atomic_store_explicit( &OrderCode, ORDER_COMPLETED, memory_order_release );
 			}
 			else{
-				// The ramp is continued
+				// The ramp is continuing
 
 				StateCode = STATE_SET_START;
-				int TemporarySelectedChannel = atomic_load_explicit(&SelectedChannel, memory_order_acquire);
+				TemporarySelectedChannel = atomic_load_explicit(&SelectedChannel, memory_order_acquire);
 				uint16_t TemporaryRequiredDacValue;
 
 				bool ZeroRegionCrossing = calculateRampStep( &TemporaryRequiredDacValue, RequiredDacValue[TemporarySelectedChannel],
 						WrittenRequiredValue[TemporarySelectedChannel] );
 
 				WrittenRequiredValue[TemporarySelectedChannel] = TemporaryRequiredDacValue;
-				WorkingDataForTwoPcf8574 = prepareDataForTwoPcf8574( TemporaryRequiredDacValue, AddressTable[TemporarySelectedChannel] );
+				WorkingDataForTwoPcf8574[TemporarySelectedChannel] =
+						prepareDataForTwoPcf8574( TemporaryRequiredDacValue, AddressTable[TemporarySelectedChannel] );
 				if (ZeroRegionCrossing){
 					RampDelay = SLOW_RAMP_DELAY;
 				}
