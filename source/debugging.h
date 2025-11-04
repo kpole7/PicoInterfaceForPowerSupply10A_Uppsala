@@ -23,6 +23,8 @@ void initializeDebugDevices(void);
 
 bool getPushButtonState(void);
 
+bool getPushButtonEvent(void);
+
 /// @brief This function checks if the push button state has changed, ignoring contact flicker
 /// @return 0 if the state has not changed
 /// @return 1 if the status has changed to "released"

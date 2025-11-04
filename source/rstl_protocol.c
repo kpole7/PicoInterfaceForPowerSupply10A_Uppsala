@@ -201,8 +201,9 @@ CommandErrors executeCommand(void){
 				}
 			}
 		}
-		printf( "cmd ust\tE=%d\tch=%u\t0x%04X\n", ErrorCode,
-				(unsigned)atomic_load_explicit(&SelectedChannel, memory_order_acquire)+1, ValueInDacUnits );
+		printf( "cmd ust\tE=%d\tch=%u\t%d\t0x%04X\n", ErrorCode,
+				(unsigned)atomic_load_explicit(&SelectedChannel, memory_order_acquire)+1,
+				ValueInDacUnits-OFFSET_IN_DAC_UNITS, ValueInDacUnits );
 	}
 	else if (strstr(NewCommand, "Z") == NewCommand){ // "Select channel" command
 		unsigned TemporaryChannel;

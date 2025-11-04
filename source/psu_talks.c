@@ -33,15 +33,16 @@
 /// This constant is used to define the ramp according to which the current changes occur.
 /// The output current changes more slowly in this region:
 /// OFFSET_IN_DAC_UNITS-NEAR_ZERO_REGION_IN_DAC_UNITS ... OFFSET_IN_DAC_UNITS+NEAR_ZERO_REGION_IN_DAC_UNITS
-#define NEAR_ZERO_REGION_IN_DAC_UNITS	5
+#define NEAR_ZERO_REGION_IN_DAC_UNITS	15
 
-/// This constant defines the maximum rate of change of current.
+/// This constant defines the maximum rate of change of current
 /// 1 DAC unit = aprox. 0.05% of 10A
-#define FAST_RAMP_STEP_IN_DAC_UNITS		100
+#define FAST_RAMP_STEP_IN_DAC_UNITS		30
 
-#define FAST_RAMP_DELAY					10
+/// This constant defines the rate of change of current near zero
+#define SLOW_RAMP_STEP_IN_DAC_UNITS		1
 
-#define SLOW_RAMP_DELAY					200
+#define RAMP_DELAY						20
 
 //---------------------------------------------------------------------------------------------------
 // Local constants
@@ -144,9 +145,7 @@ static uint16_t prepareDataForTwoPcf8574( uint16_t DacRawValue, uint8_t AddressO
 /// @param ResultDacValue points to a result value that is the DAC setpoint following the ramp towards the TargetValue
 /// @param TargetValue user-specified value converted to DAC setting
 /// @param PresentValue the last setting written to the DAC
-/// @return true if the ramp crosses one of the two boundaries of the zero region
-/// @return false in the opposite case
-static bool calculateRampStep( uint16_t *ResultDacValue, uint16_t TargetValue, uint16_t PresentValue );
+static void calculateRampStep( uint16_t *ResultDacValue, uint16_t TargetValue, uint16_t PresentValue );
 
 //---------------------------------------------------------------------------------------------------
 // Function definitions
@@ -188,9 +187,9 @@ void initializePsuTalks(void){
 /// @brief This function is called periodically by the time interrupt handler
 void psuTalksTimeTick(void){
 	static uint16_t WorkingDataForTwoPcf8574[NUMBER_OF_POWER_SUPPLIES];
-	static int16_t DebuggingI2cData;
 	static uint32_t RampDelay;
 	bool IsI2cSuccess;
+	bool IsExit = false;
 
 	if (atomic_load_explicit( &OrderCode, memory_order_acquire ) == ORDER_COMMAND_PC){
 		StateCode = STATE_PC_PCX_START;
@@ -199,12 +198,11 @@ void psuTalksTimeTick(void){
 		WorkingDataForTwoPcf8574[TemporarySelectedChannel] = prepareDataForTwoPcf8574( RequiredDacValue[TemporarySelectedChannel],
 				AddressTable[TemporarySelectedChannel] );
 		atomic_store_explicit( &OrderCode, ORDER_PROCESSING, memory_order_release );
-		DebuggingI2cData = RequiredDacValue[TemporarySelectedChannel] - OFFSET_FOR_DEBUGGING;
 
-		return;
+		IsExit = true;
 	}
 
-	if (atomic_load_explicit( &OrderCode, memory_order_acquire ) == ORDER_COMMAND_SET){
+	if (!IsExit && (atomic_load_explicit( &OrderCode, memory_order_acquire ) == ORDER_COMMAND_SET)){
 		StateCode = STATE_SET_START;
 		RampDelay = 0;
 		int TemporarySelectedChannel = atomic_load_explicit(&SelectedChannel, memory_order_acquire);
@@ -217,10 +215,10 @@ void psuTalksTimeTick(void){
 		WorkingDataForTwoPcf8574[TemporarySelectedChannel] = prepareDataForTwoPcf8574( TemporaryRequiredDacValue, AddressTable[TemporarySelectedChannel] );
 		atomic_store_explicit( &OrderCode, ORDER_PROCESSING, memory_order_release );
 
-		return;
+		IsExit = true;
 	}
 
-	if (atomic_load_explicit( &OrderCode, memory_order_acquire ) == ORDER_COMMAND_POWER_ON){
+	if (!IsExit && (atomic_load_explicit( &OrderCode, memory_order_acquire ) == ORDER_COMMAND_POWER_ON)){
 		StateCode = STATE_POWER1_TEST_000_START;
 		RampDelay = 0;
 		int TemporarySelectedChannel = atomic_load_explicit(&SelectedChannel, memory_order_acquire);
@@ -233,10 +231,10 @@ void psuTalksTimeTick(void){
 		WorkingDataForTwoPcf8574[TemporarySelectedChannel] = prepareDataForTwoPcf8574( TemporaryRequiredDacValue, AddressTable[TemporarySelectedChannel] );
 		atomic_store_explicit( &OrderCode, ORDER_PROCESSING, memory_order_release );
 
-		return;
+		IsExit = true;
 	}
 
-	if (atomic_load_explicit( &OrderCode, memory_order_acquire ) == ORDER_PROCESSING){
+	if (!IsExit && (atomic_load_explicit( &OrderCode, memory_order_acquire ) == ORDER_PROCESSING)){
 		int TemporarySelectedChannel;
 
 		switch( StateCode ){
@@ -287,15 +285,15 @@ void psuTalksTimeTick(void){
 		case STATE_PC_PCX_NOT_WR_SIGNAL:
 			gpio_put( GPIO_FOR_NOT_WR_OUTPUT, true );
 
-			StateCode = STATE_IDLE;
-			atomic_store_explicit( &OrderCode, ORDER_COMPLETED, memory_order_release );
-
 			changeDebugPin1(true);
 
-			printf( "%12llu  i2c\t%d\n", time_us_64(), DebuggingI2cData );
+			printf( "%12llu  i2c\t%d\n", time_us_64(),
+					WrittenRequiredValue[atomic_load_explicit(&SelectedChannel, memory_order_acquire)]-OFFSET_FOR_DEBUGGING );
 
 			changeDebugPin1(false);		// measured time = 150 us;  2025-10-30
 
+			StateCode = STATE_IDLE;
+			atomic_store_explicit( &OrderCode, ORDER_COMPLETED, memory_order_release );
 			break;
 
 		case STATE_SET_START:
@@ -350,6 +348,13 @@ void psuTalksTimeTick(void){
 		case STATE_SET_NOT_WR_SIGNAL:
 			gpio_put( GPIO_FOR_NOT_WR_OUTPUT, true );
 
+			changeDebugPin1(true);
+
+			printf( "%12llu  i2c\t%d\n", time_us_64(),
+					WrittenRequiredValue[atomic_load_explicit(&SelectedChannel, memory_order_acquire)]-OFFSET_FOR_DEBUGGING );
+
+			changeDebugPin1(false);		// measured time = 150 us;  2025-10-30
+
 			TemporarySelectedChannel = atomic_load_explicit(&SelectedChannel, memory_order_acquire);
 			if (RequiredDacValue[TemporarySelectedChannel] == WrittenRequiredValue[TemporarySelectedChannel]){
 				// The ramp is completed
@@ -364,18 +369,13 @@ void psuTalksTimeTick(void){
 				TemporarySelectedChannel = atomic_load_explicit(&SelectedChannel, memory_order_acquire);
 				uint16_t TemporaryRequiredDacValue;
 
-				bool ZeroRegionCrossing = calculateRampStep( &TemporaryRequiredDacValue, RequiredDacValue[TemporarySelectedChannel],
+				calculateRampStep( &TemporaryRequiredDacValue, RequiredDacValue[TemporarySelectedChannel],
 						WrittenRequiredValue[TemporarySelectedChannel] );
 
 				WrittenRequiredValue[TemporarySelectedChannel] = TemporaryRequiredDacValue;
 				WorkingDataForTwoPcf8574[TemporarySelectedChannel] =
 						prepareDataForTwoPcf8574( TemporaryRequiredDacValue, AddressTable[TemporarySelectedChannel] );
-				if (ZeroRegionCrossing){
-					RampDelay = SLOW_RAMP_DELAY;
-				}
-				else{
-					RampDelay = FAST_RAMP_DELAY;
-				}
+				RampDelay = RAMP_DELAY;
 			}
 			break;
 
@@ -392,6 +392,19 @@ void psuTalksTimeTick(void){
 		default:
 		}
 	}
+
+#if 0
+	// debugging
+	static StatesOfPsuFsm OldStateCode;
+
+	if (!getPushButtonState()){
+		StateCode = STATE_IDLE;
+	}
+	if (OldStateCode != StateCode){
+		printf( "state %d\n", StateCode );
+		OldStateCode = StateCode;
+	}
+#endif
 }
 
 /// @brief This function changes the power contactor state
@@ -404,35 +417,33 @@ bool getLogicFeedbackFromPsu( void ){
 	return gpio_get( GPIO_FOR_PSU_LOGIC_FEEDBACK );
 }
 
-static bool calculateRampStep( uint16_t *ResultDacValue, uint16_t TargetValue, uint16_t PresentValue ){
-	bool RampCrossesZeroRegionBorder = false;
+static void calculateRampStep( uint16_t *ResultDacValue, uint16_t TargetValue, uint16_t PresentValue ){
 	uint16_t TemporaryRequiredDacValue = TargetValue;
+	uint16_t RampStep = FAST_RAMP_STEP_IN_DAC_UNITS;
 	if (PresentValue > (OFFSET_IN_DAC_UNITS + NEAR_ZERO_REGION_IN_DAC_UNITS)){
 		if (TargetValue < (OFFSET_IN_DAC_UNITS + NEAR_ZERO_REGION_IN_DAC_UNITS)){
-			//			                <------<                   the arrow indicates the present value and the required value
+			//			              <----X----<                   the arrow indicates the present value and the required value
 			//			-----------|---0---|----------------> I
-			// The ramp may need to be slowed down
 			TemporaryRequiredDacValue = (OFFSET_IN_DAC_UNITS + NEAR_ZERO_REGION_IN_DAC_UNITS);
-			RampCrossesZeroRegionBorder = true;
 		}
 		else{
-			//			                       <------<
-			//			                       >------>
+			//			           |       |   <--------<
+			//			           |       <--------<
+			//			           |       |   >-------->
 			//			-----------|---0---|----------------> I
 			// do not slow down
 		}
 	}
 	else if (PresentValue < (OFFSET_IN_DAC_UNITS - NEAR_ZERO_REGION_IN_DAC_UNITS)){
 		if (TargetValue   > (OFFSET_IN_DAC_UNITS - NEAR_ZERO_REGION_IN_DAC_UNITS)){
-			//			       >------>
+			//			      >----X---->
 			//			-----------|---0---|----------------> I
-			// The ramp may need to be slowed down
 			TemporaryRequiredDacValue = (OFFSET_IN_DAC_UNITS - NEAR_ZERO_REGION_IN_DAC_UNITS);
-			RampCrossesZeroRegionBorder = true;
 		}
 		else{
-			//			 <------<
-			//			 >------>
+			//			 <------<  |       |
+			//			 >------>  |       |
+			//			    >------>       |
 			//			-----------|---0---|----------------> I
 			// do not slow down
 		}
@@ -441,44 +452,40 @@ static bool calculateRampStep( uint16_t *ResultDacValue, uint16_t TargetValue, u
 		if ((PresentValue <= (OFFSET_IN_DAC_UNITS + NEAR_ZERO_REGION_IN_DAC_UNITS)) &&
 				(TargetValue > (OFFSET_IN_DAC_UNITS + NEAR_ZERO_REGION_IN_DAC_UNITS)))
 		{
-			//			              >------>
+			//			           |     >-->
+			//			           |       >-->
 			//			-----------|---0---|----------------> I
-			// The ramp may need to be slowed down
-			TemporaryRequiredDacValue = (OFFSET_IN_DAC_UNITS + NEAR_ZERO_REGION_IN_DAC_UNITS);
-			RampCrossesZeroRegionBorder = true;
+			RampStep = SLOW_RAMP_STEP_IN_DAC_UNITS;
 		}
 		else if ((PresentValue >= (OFFSET_IN_DAC_UNITS - NEAR_ZERO_REGION_IN_DAC_UNITS)) &&
 				(TargetValue < (OFFSET_IN_DAC_UNITS - NEAR_ZERO_REGION_IN_DAC_UNITS)))
 		{
-			//			        <------<
+			//			         <--<      |
+			//			        <--<       |
 			//			-----------|---0---|----------------> I
-			// The ramp may need to be slowed down
-			TemporaryRequiredDacValue = (OFFSET_IN_DAC_UNITS - NEAR_ZERO_REGION_IN_DAC_UNITS);
-			RampCrossesZeroRegionBorder = true;
+			RampStep = SLOW_RAMP_STEP_IN_DAC_UNITS;
 		}
 		else{
-			//			             <--<
-			//			             >-->
+			//			           | <--<  |
+			//			           | >-->  |
 			//			-----------|---0---|----------------> I
-			// The ramp may need to be slowed down
-			RampCrossesZeroRegionBorder = true;
+			RampStep = SLOW_RAMP_STEP_IN_DAC_UNITS;
 		}
 	}
 
 	// calculate a single step of the ramp
 	if (TemporaryRequiredDacValue >= PresentValue){
-		if (TemporaryRequiredDacValue > PresentValue + FAST_RAMP_STEP_IN_DAC_UNITS){
-			TemporaryRequiredDacValue = PresentValue + FAST_RAMP_STEP_IN_DAC_UNITS;
+		if (TemporaryRequiredDacValue > PresentValue + RampStep){
+			TemporaryRequiredDacValue = PresentValue + RampStep;
 		}
 	}
 	else{
-		if (TemporaryRequiredDacValue < PresentValue - FAST_RAMP_STEP_IN_DAC_UNITS){
-			TemporaryRequiredDacValue = PresentValue - FAST_RAMP_STEP_IN_DAC_UNITS;
+		if (TemporaryRequiredDacValue < PresentValue - RampStep){
+			TemporaryRequiredDacValue = PresentValue - RampStep;
 		}
 	}
 
 	*ResultDacValue = TemporaryRequiredDacValue;
-	return RampCrossesZeroRegionBorder;
 }
 
 

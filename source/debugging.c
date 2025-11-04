@@ -9,7 +9,7 @@
 // Macro directives
 //---------------------------------------------------------------------------------------------------
 
-#define GPIO_FOR_PUSH_BUTTON	17
+#define GPIO_FOR_PUSH_BUTTON	18
 #define CONTACT_FLICKER_TIME	20000
 
 #define GPIO_FOR_DEBUG_PIN_1	15
