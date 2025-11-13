@@ -14,7 +14,21 @@ add_executable(power_source_10A_Uppsala
     ${CMAKE_CURRENT_LIST_DIR}/source/pwm_output.c
     ${CMAKE_CURRENT_LIST_DIR}/source/i2c_outputs.c
     ${CMAKE_CURRENT_LIST_DIR}/source/adc_inputs.c
+    ${CMAKE_CURRENT_LIST_DIR}/source/compilation_time.c
     ${CMAKE_CURRENT_LIST_DIR}/source/debugging.c
+)
+
+add_custom_target(
+    force_compilation_time ALL
+    COMMAND ${CMAKE_COMMAND} -E touch ${CMAKE_CURRENT_BINARY_DIR}/phony_timestamp
+    BYPRODUCTS ${CMAKE_CURRENT_BINARY_DIR}/phony_timestamp
+    COMMENT "Touch phony_timestamp to force recompilation of compilation_time.c"
+)
+
+set_source_files_properties(
+    ${CMAKE_CURRENT_LIST_DIR}/source/compilation_time.c
+    PROPERTIES
+        OBJECT_DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/phony_timestamp
 )
 
 target_compile_definitions(power_source_10A_Uppsala PRIVATE

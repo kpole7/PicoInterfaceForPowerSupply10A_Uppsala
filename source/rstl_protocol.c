@@ -8,6 +8,7 @@
 #include "uart_talks.h"
 #include "psu_talks.h"
 #include "adc_inputs.h"
+#include "compilation_time.h"
 
 //---------------------------------------------------------------------------------------------------
 // Macro directives
@@ -327,12 +328,12 @@ CommandErrors executeCommand(void){
 		}
 		else{
 			// essential action
-			snprintf( ResponseBuffer, COMMAND_BUFFER_LENGTH-1, "wersja " __DATE__ ", " __TIME__ "\r\n>" );
+			snprintf( ResponseBuffer, COMMAND_BUFFER_LENGTH-1, "wersja %s\r\n>", CompilationTime );
 			transmitViaSerialPort( ResponseBuffer );
 		}
-		printf( "cmd wer\tE=%d\tch=%u\t%s\n", ErrorCode,
+		printf( "cmd wer\tE=%d\tch=%u\twersja %s\n", ErrorCode,
 				(unsigned)atomic_load_explicit(&SelectedChannel, memory_order_acquire)+1,
-				"wersja " __DATE__ ", " __TIME__ );
+				CompilationTime );
 	}
 	else{
 		ErrorCode = COMMAND_UNKNOWN;

@@ -188,6 +188,7 @@ void initializePsuTalks(void){
 void psuTalksTimeTick(void){
 	static uint16_t WorkingDataForTwoPcf8574[NUMBER_OF_POWER_SUPPLIES];
 	static uint32_t RampDelay;
+	static bool OldSig2;
 	bool IsI2cSuccess;
 	bool IsExit = false;
 
@@ -301,6 +302,8 @@ void psuTalksTimeTick(void){
 				RampDelay--;
 			}
 			else{
+				OldSig2 = getLogicFeedbackFromPsu();
+
 				TemporarySelectedChannel = atomic_load_explicit(&SelectedChannel, memory_order_acquire);
 				IsI2cSuccess = i2cWrite( PCF8574_ADDRESS_2, (uint8_t)WorkingDataForTwoPcf8574[TemporarySelectedChannel] );
 				if (IsI2cSuccess){
@@ -348,10 +351,15 @@ void psuTalksTimeTick(void){
 		case STATE_SET_NOT_WR_SIGNAL:
 			gpio_put( GPIO_FOR_NOT_WR_OUTPUT, true );
 
+			bool Sig2Value = getLogicFeedbackFromPsu();
+
 			changeDebugPin1(true);
 
-			printf( "%12llu  i2c\t%d\n", time_us_64(),
-					WrittenRequiredValue[atomic_load_explicit(&SelectedChannel, memory_order_acquire)]-OFFSET_FOR_DEBUGGING );
+			printf( "%12llu  i2c\t%d\t%c %c\n",
+					time_us_64(),
+					WrittenRequiredValue[atomic_load_explicit(&SelectedChannel, memory_order_acquire)]-OFFSET_FOR_DEBUGGING,
+					OldSig2? 'H':'L',
+					Sig2Value? 'H':'L' );
 
 			changeDebugPin1(false);		// measured time = 150 us;  2025-10-30
 
