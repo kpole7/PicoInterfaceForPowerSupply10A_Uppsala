@@ -47,7 +47,7 @@ bool i2cWrite( uint8_t I2cAddress, uint8_t Value) {
 
 #else
 
-    for (volatile uint32_t DebugCounter = 0; DebugCounter < 125000; DebugCounter++) {
+    for (volatile uint32_t DebugCounter = 0; DebugCounter < 5000; DebugCounter++) {
         __asm volatile("nop");
 	}
 	int Result = 1;
