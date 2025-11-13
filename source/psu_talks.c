@@ -42,7 +42,7 @@
 /// This constant defines the rate of change of current near zero
 #define SLOW_RAMP_STEP_IN_DAC_UNITS		1
 
-#define RAMP_DELAY						20
+#define RAMP_DELAY						200 // 20
 
 //---------------------------------------------------------------------------------------------------
 // Local constants

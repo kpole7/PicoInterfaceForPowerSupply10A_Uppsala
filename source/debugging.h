@@ -13,7 +13,7 @@
 
 #define OFFSET_FOR_DEBUGGING		2048
 
-#define SIMULATE_HARDWARE_PSU		1
+#define SIMULATE_HARDWARE_PSU		0
 
 //---------------------------------------------------------------------------------------------------
 // Function prototypes
