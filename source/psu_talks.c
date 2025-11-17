@@ -100,6 +100,9 @@ static volatile WritingToDacStates WritingToDacState;
 /// @brief This variable is used in a simple state machine
 static volatile uint32_t WritingToDacChannel;
 
+/// @brief This variable is used in a simple state machine
+static volatile bool WritingToDacIsValidData[NUMBER_OF_POWER_SUPPLIES];
+
 /// @brief This variable is used to monitor the I2C devices
 /// @todo exception handling
 static atomic_int I2cConsecutiveErrors;
@@ -118,7 +121,7 @@ static atomic_int I2cConsecutiveErrors;
 static uint16_t prepareDataForTwoPcf8574( uint16_t DacRawValue, uint8_t AddressOfPsu );
 
 /// This function is the inverse to the prepareDataForTwoPcf8574 function; this is a debugging tool
-static void decodeDataSentToPcf8574s( uint16_t *DacRawValuePtr, uint16_t Pcf8574Data );
+static uint32_t decodeDataSentToPcf8574s( uint16_t *DacRawValuePtr, uint16_t Pcf8574Data );
 
 /// @brief This function calculates a new setpoint value for the DAC, that corresponds to a single step of the ramp
 /// If the ramp crosses zero, it may require additional slowdown.
@@ -148,8 +151,8 @@ static uint16_t prepareDataForTwoPcf8574( uint16_t DacRawValue, uint8_t AddressO
 	return Result;
 }
 
-static void decodeDataSentToPcf8574s( uint16_t *DacRawValuePtr, uint16_t Pcf8574Data ){
-	uint8_t AddressOfPsu = 0;
+static uint32_t decodeDataSentToPcf8574s( uint16_t *DacRawValuePtr, uint16_t Pcf8574Data ){
+	uint32_t AddressOfPsu = 0;
 	for (uint8_t J = 0; J < PSU_ADDRESS_BITS; J++){
 		if ((Pcf8574Data & ConvertionPsuAddressToPcf8574[J]) != 0){
 			AddressOfPsu |= (1 << J);
@@ -163,6 +166,7 @@ static void decodeDataSentToPcf8574s( uint16_t *DacRawValuePtr, uint16_t Pcf8574
 			}
 		}
 	}
+	return AddressOfPsu;
 }
 
 /// @brief This function initializes the module variables and peripherals.
@@ -171,6 +175,9 @@ void initializePsuTalks(void){
 	gpio_set_dir(GPIO_FOR_NOT_WR_OUTPUT, GPIO_OUT);
 	gpio_put( GPIO_FOR_NOT_WR_OUTPUT, true );	// the idle state is high
 
+	for (uint32_t J = 0; J < NUMBER_OF_POWER_SUPPLIES; J++){
+		WritingToDacIsValidData[J] = false;
+	}
 	WritingToDacState = WRITING_TO_DAC_INITIALIZE;
 	atomic_store_explicit( &I2cConsecutiveErrors, 0, memory_order_release );
 
@@ -208,6 +215,8 @@ void writeToDacStateMachine(void){
 			WorkingDataForTwoPcf8574[TemporarySelectedChannel] = prepareDataForTwoPcf8574( RequiredDacValue[TemporarySelectedChannel],
 					AddressTable[TemporarySelectedChannel] );
 
+			WritingToDacIsValidData[TemporarySelectedChannel] = true;
+
 			atomic_store_explicit( &OrderCode, ORDER_ACCEPTED, memory_order_release );
 
 		}
@@ -216,50 +225,67 @@ void writeToDacStateMachine(void){
 		break;
 
 	case WRITING_TO_DAC_SEND_1ST_BYTE:
-		IsI2cSuccess = i2cWrite( PCF8574_ADDRESS_2, (uint8_t)WorkingDataForTwoPcf8574[WritingToDacChannel] );
-		if (IsI2cSuccess){
-			atomic_store_explicit( &I2cConsecutiveErrors, 0, memory_order_release );
-			WritingToDacState = WRITING_TO_DAC_SEND_2ND_BYTE;
-		}
-		else{
-			// Exception handling
-			if (atomic_load_explicit( &I2cConsecutiveErrors, memory_order_acquire ) < I2C_CONSECUTIVE_ERRORS_LIMIT){
-				atomic_fetch_add_explicit( &I2cConsecutiveErrors, 1, memory_order_acq_rel );
+		if (WritingToDacIsValidData[WritingToDacChannel]){
+			IsI2cSuccess = i2cWrite( PCF8574_ADDRESS_2, (uint8_t)WorkingDataForTwoPcf8574[WritingToDacChannel] );
+			if (IsI2cSuccess){
+				atomic_store_explicit( &I2cConsecutiveErrors, 0, memory_order_release );
+				WritingToDacState = WRITING_TO_DAC_SEND_2ND_BYTE;
 			}
 			else{
-				WritingToDacState = WRITING_TO_DAC_FAILURE;
+				// Exception handling
+				if (atomic_load_explicit( &I2cConsecutiveErrors, memory_order_acquire ) < I2C_CONSECUTIVE_ERRORS_LIMIT){
+					atomic_fetch_add_explicit( &I2cConsecutiveErrors, 1, memory_order_acq_rel );
+				}
+				else{
+					WritingToDacState = WRITING_TO_DAC_FAILURE;
+				}
 			}
+		}
+		else{
+			WritingToDacState = WRITING_TO_DAC_SEND_2ND_BYTE;
 		}
 		break;
 
 	case WRITING_TO_DAC_SEND_2ND_BYTE:
-		IsI2cSuccess = i2cWrite( PCF8574_ADDRESS_1, (uint8_t)(WorkingDataForTwoPcf8574[WritingToDacChannel] >> 8) );
-		if (IsI2cSuccess){
-			atomic_store_explicit( &I2cConsecutiveErrors, 0, memory_order_release );
-			WritingToDacState = WRITING_TO_DAC_LATCH_DATA;
-		}
-		else{
-			// Exception handling
-			if (atomic_load_explicit( &I2cConsecutiveErrors, memory_order_acquire ) < I2C_CONSECUTIVE_ERRORS_LIMIT){
-				atomic_fetch_add_explicit( &I2cConsecutiveErrors, 1, memory_order_acq_rel );
+		if (WritingToDacIsValidData[WritingToDacChannel]){
+			IsI2cSuccess = i2cWrite( PCF8574_ADDRESS_1, (uint8_t)(WorkingDataForTwoPcf8574[WritingToDacChannel] >> 8) );
+			if (IsI2cSuccess){
+				atomic_store_explicit( &I2cConsecutiveErrors, 0, memory_order_release );
+				WritingToDacState = WRITING_TO_DAC_LATCH_DATA;
 			}
 			else{
-				WritingToDacState = WRITING_TO_DAC_FAILURE;
+				// Exception handling
+				if (atomic_load_explicit( &I2cConsecutiveErrors, memory_order_acquire ) < I2C_CONSECUTIVE_ERRORS_LIMIT){
+					atomic_fetch_add_explicit( &I2cConsecutiveErrors, 1, memory_order_acq_rel );
+				}
+				else{
+					WritingToDacState = WRITING_TO_DAC_FAILURE;
+				}
 			}
+		}
+		else{
+			WritingToDacState = WRITING_TO_DAC_LATCH_DATA;
 		}
 		break;
 
 	case WRITING_TO_DAC_LATCH_DATA:
-		// writing to ADC (signal /WR)
-		gpio_put( GPIO_FOR_NOT_WR_OUTPUT, false );
-		WrittenRequiredValue[WritingToDacChannel] = RequiredDacValue[WritingToDacChannel];
-		decodeDataSentToPcf8574s( &DebugValueWrittenToDac[0], DebugValueWrittenToPCFs );
+		if (WritingToDacIsValidData[WritingToDacChannel]){
+			// writing to ADC (signal /WR)
+			gpio_put( GPIO_FOR_NOT_WR_OUTPUT, false );
+			WrittenRequiredValue[WritingToDacChannel] = RequiredDacValue[WritingToDacChannel];
+			WritingToDacIsValidData[WritingToDacChannel] = false;
 
-		changeDebugPin1(true);
-		printf( "%12llu  i2c\t%d\n", time_us_64(),
-				RequiredDacValue[WritingToDacChannel]-OFFSET_FOR_DEBUGGING );
-		changeDebugPin1(false);		// measured time = 150 us;  2025-10-30
+			uint32_t DacAddress = decodeDataSentToPcf8574s( &DebugValueWrittenToDac[0], DebugValueWrittenToPCFs );
 
+			changeDebugPin1(true);
+			printf( "%12llu  i2c\t%d %d\t%d %d\n", time_us_64(),
+					WritingToDacChannel,
+					RequiredDacValue[WritingToDacChannel]-OFFSET_FOR_DEBUGGING,
+					DacAddress,
+					DebugValueWrittenToDac[DacAddress]-OFFSET_FOR_DEBUGGING );
+			changeDebugPin1(false);		// measured time = ? us;  2025-10-??
+
+		}
 		WritingToDacState = WRITING_TO_DAC_INITIALIZE;
 		break;
 
