@@ -4,6 +4,7 @@
 
 #include "adc_inputs.h"
 #include "psu_talks.h"
+#include "writing_to_dac.h"
 #include "main_timer.h"
 
 //---------------------------------------------------------------------------------------------------

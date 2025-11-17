@@ -17,22 +17,34 @@
 #define INITIAL_MAIN_CONTACTOR_STATE	false
 
 //---------------------------------------------------------------------------------------------------
+// Global variables
+//---------------------------------------------------------------------------------------------------
+
+/// @brief Setpoint value for a DAC
+extern volatile uint16_t UserSetpointDacValue[NUMBER_OF_POWER_SUPPLIES];
+
+/// @brief Setpoint value for the DAC (number from 0 to 0xFFF) at a given moment (follows the ramp)
+extern volatile uint16_t InstantaneousSetpointDacValue[NUMBER_OF_POWER_SUPPLIES];
+
+/// @brief Set-point value written to the DAC (number from 0 to 0xFFF)
+extern volatile uint16_t WrittenToDacValue[NUMBER_OF_POWER_SUPPLIES];
+
+/// @brief This variable is used in a simple state machine
+extern volatile bool WritingToDacIsValidData[NUMBER_OF_POWER_SUPPLIES];
+
+//---------------------------------------------------------------------------------------------------
 // Function prototypes
 //---------------------------------------------------------------------------------------------------
 
 /// @brief This function initializes the module variables and peripherals.
 void initializePsuTalks(void);
 
-/// @brief This function drives the state machines of each PSU.
-/// Each PSU has its own state machine, which allows them to operate simultaneously.
-/// All state machines are identical.
-/// This function is called periodically by the time interrupt handler.
-void writeToDacStateMachine(void);
-
 /// @brief This function changes the power contactor state
 void setMainContactorState( bool IsMainContactorStateOn );
 
 /// @brief This function reads the logical state of the signal marked as "Sig2" in the diagram
 bool getLogicFeedbackFromPsu( void );
+
+void psuTalksStateMachine( uint32_t Channel );
 
 #endif // SOURCE_PSU_TALKS_H_

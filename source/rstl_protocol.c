@@ -6,6 +6,7 @@
 #include "pico/stdlib.h"
 #include "rstl_protocol.h"
 #include "uart_talks.h"
+#include "writing_to_dac.h"
 #include "psu_talks.h"
 #include "adc_inputs.h"
 #include "compilation_time.h"
@@ -35,15 +36,6 @@ atomic_int OrderCode;
 /// @brief This is a power supply unit to which OrderCode refers
 /// The variable can be modified in the main loop and in the timer interrupt handler
 atomic_int OrderChannel;
-
-/// @brief User's set-point value for the DAC (number from 0 to 0xFFF)
-volatile uint16_t UserSetpointDacValue[NUMBER_OF_POWER_SUPPLIES];
-
-/// @brief Setpoint value for the DAC (number from 0 to 0xFFF) at a given moment (follows the ramp)
-volatile uint16_t InstantaneousSetpointDacValue[NUMBER_OF_POWER_SUPPLIES];
-
-/// @brief Set-point value written to the DAC (number from 0 to 0xFFF)
-volatile uint16_t WrittenToDacValue[NUMBER_OF_POWER_SUPPLIES];
 
 //---------------------------------------------------------------------------------------------------
 // Local variables

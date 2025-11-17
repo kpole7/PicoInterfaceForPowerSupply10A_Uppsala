@@ -11,6 +11,7 @@ add_executable(power_source_10A_Uppsala
     ${CMAKE_CURRENT_LIST_DIR}/source/rstl_protocol.c
     ${CMAKE_CURRENT_LIST_DIR}/source/uart_talks.c
     ${CMAKE_CURRENT_LIST_DIR}/source/psu_talks.c
+    ${CMAKE_CURRENT_LIST_DIR}/source/writing_to_dac.c
     ${CMAKE_CURRENT_LIST_DIR}/source/pwm_output.c
     ${CMAKE_CURRENT_LIST_DIR}/source/i2c_outputs.c
     ${CMAKE_CURRENT_LIST_DIR}/source/adc_inputs.c
