@@ -56,7 +56,26 @@ bool i2cWrite( uint8_t I2cAddress, uint8_t Value) {
 
 	changeDebugPin2(false); // measured time = 420 us;  2025-10-30
 
+#if 1
+	if (PCF8574_ADDRESS_1 == I2cAddress){
+		DebugValueWrittenToPCFs &= 0x00FFu;
+	}
+	if (PCF8574_ADDRESS_2 == I2cAddress){
+		DebugValueWrittenToPCFs &= 0xFF00u;
+	}
+#endif
+
 	if (1 == Result){
+
+#if 1
+		if (PCF8574_ADDRESS_1 == I2cAddress){
+			DebugValueWrittenToPCFs |= ((uint16_t)Value << 8);
+		}
+		if (PCF8574_ADDRESS_2 == I2cAddress){
+			DebugValueWrittenToPCFs |= (uint16_t)Value;
+		}
+#endif
+
 		return true;
 	}
 	return false;

@@ -50,7 +50,7 @@ static int64_t timerInterruptHandler(alarm_id_t id, void *user_data){
 		getVoltageSamples();
 	}
 
-	psuTalksTimeTick();
+	writeToDacStateMachine();
 
 	// timer restart
 	return TIMER_INTERRUPT_INTERVAL_US;

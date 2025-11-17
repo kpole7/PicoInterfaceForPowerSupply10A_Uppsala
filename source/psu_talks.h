@@ -20,11 +20,14 @@
 // Function prototypes
 //---------------------------------------------------------------------------------------------------
 
-/// @brief This function initializes "not WR" output port used to communicate with PSUs
+/// @brief This function initializes the module variables and peripherals.
 void initializePsuTalks(void);
 
-/// @brief This function is called periodically by the time interrupt handler
-void psuTalksTimeTick(void);
+/// @brief This function drives the state machines of each PSU.
+/// Each PSU has its own state machine, which allows them to operate simultaneously.
+/// All state machines are identical.
+/// This function is called periodically by the time interrupt handler.
+void writeToDacStateMachine(void);
 
 /// @brief This function changes the power contactor state
 void setMainContactorState( bool IsMainContactorStateOn );

@@ -6,6 +6,8 @@
 #define SOURCE_DEBUGGING_H_
 
 #include <stdbool.h>
+#include "pico/stdlib.h"
+#include "config.h"
 
 //---------------------------------------------------------------------------------------------------
 // Macro directives
@@ -13,7 +15,10 @@
 
 #define OFFSET_FOR_DEBUGGING		2048
 
-#define SIMULATE_HARDWARE_PSU		0
+#define SIMULATE_HARDWARE_PSU		1
+
+
+extern uint16_t DebugValueWrittenToPCFs, DebugValueWrittenToDac[NUMBER_OF_POWER_SUPPLIES];
 
 //---------------------------------------------------------------------------------------------------
 // Function prototypes

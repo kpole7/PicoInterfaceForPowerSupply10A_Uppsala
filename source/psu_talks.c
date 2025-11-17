@@ -2,6 +2,7 @@
 
 #include <stdio.h>
 #include <inttypes.h>
+#include <assert.h>
 #include "psu_talks.h"
 #include "i2c_outputs.h"
 #include "rstl_protocol.h"
@@ -10,12 +11,6 @@
 //---------------------------------------------------------------------------------------------------
 // Macro directives
 //---------------------------------------------------------------------------------------------------
-
-/// The 1'st PCF8574 address (A0=A1=A2=high)
-#define PCF8574_ADDRESS_2				0x27
-
-/// The 2'nd PCF8574 address (A0=high; A1=A2=low)
-#define PCF8574_ADDRESS_1				0x21
 
 #define DAC_NUMBER_OF_BITS				12
 
@@ -42,7 +37,9 @@
 /// This constant defines the rate of change of current near zero
 #define SLOW_RAMP_STEP_IN_DAC_UNITS		1
 
-#define RAMP_DELAY						200 // 20
+/// This constant defines the time intervals for the ramp generator
+/// For ? intervals ? measured in debug mode (SIMULATE_HARDWARE_PSU == 1) 2025-11-14
+#define RAMP_DELAY						202
 
 //---------------------------------------------------------------------------------------------------
 // Local constants
@@ -51,34 +48,13 @@
 /// This definition contains a list of states of a finite state machine responsible for programming the DAC of a given PSU
 /// The state machine handles communication with two PCF8574 ICs and controls the notWR signal
 typedef enum {
-	STATE_IDLE,
+	WRITING_TO_DAC_INITIALIZE,
+	WRITING_TO_DAC_SEND_1ST_BYTE,				// setting a new value immediately
+	WRITING_TO_DAC_SEND_2ND_BYTE,
+	WRITING_TO_DAC_LATCH_DATA,
 
-	STATE_PC_PCX_START,				// setting a new value immediately
-	STATE_PC_PCX_1ST_BYTE,
-	STATE_PC_PCX_2ND_BYTE,
-	STATE_PC_PCX_NOT_WR_SIGNAL,
-
-	STATE_SET_START,				// setting a new value following a ramp
-	STATE_SET_1ST_BYTE,
-	STATE_SET_2ND_BYTE,
-	STATE_SET_NOT_WR_SIGNAL,
-
-	STATE_POWER1_TEST_000_START,
-	STATE_POWER1_TEST_000_1ST,
-	STATE_POWER1_TEST_000_2ND,
-	STATE_POWER1_TEST_000_NOT_WR,
-	STATE_POWER1_TEST_000_READ,
-	STATE_POWER1_TEST_FFF_1ST,
-	STATE_POWER1_TEST_FFF_2ND,
-	STATE_POWER1_TEST_FFF_NOT_WR,
-	STATE_POWER1_TEST_FFF_READ,
-	STATE_POWER1_PC0_1ST,
-	STATE_POWER1_PC0_2ND,
-	STATE_POWER1_PC0_NOT_WR,
-	STATE_POWER1_CONTACTOR,
-
-	STATE_ERROR_I2C
-}StatesOfPsuFsm;
+	WRITING_TO_DAC_FAILURE
+}WritingToDacStates;
 
 /// This table shows what needs to be written to the PCF8574 expanders
 /// to set a given bit of the digital-to-analog converter (DAC).
@@ -119,7 +95,10 @@ static const uint8_t AddressTable[NUMBER_OF_POWER_SUPPLIES] = {
 //---------------------------------------------------------------------------------------------------
 
 /// @brief This variable is used in a simple state machine
-static volatile StatesOfPsuFsm StateCode;
+static volatile WritingToDacStates WritingToDacState;
+
+/// @brief This variable is used in a simple state machine
+static volatile uint32_t WritingToDacChannel;
 
 /// @brief This variable is used to monitor the I2C devices
 /// @todo exception handling
@@ -137,6 +116,9 @@ static atomic_int I2cConsecutiveErrors;
 ///         the lower byte is to be written to PCF8574 with I2C address PCF8574_ADDRESS_2
 ///         the higher byte is to be written to PCF8574 with I2C address PCF8574_ADDRESS_1
 static uint16_t prepareDataForTwoPcf8574( uint16_t DacRawValue, uint8_t AddressOfPsu );
+
+/// This function is the inverse to the prepareDataForTwoPcf8574 function; this is a debugging tool
+static void decodeDataSentToPcf8574s( uint16_t *DacRawValuePtr, uint16_t Pcf8574Data );
 
 /// @brief This function calculates a new setpoint value for the DAC, that corresponds to a single step of the ramp
 /// If the ramp crosses zero, it may require additional slowdown.
@@ -166,13 +148,30 @@ static uint16_t prepareDataForTwoPcf8574( uint16_t DacRawValue, uint8_t AddressO
 	return Result;
 }
 
-/// @brief This function initializes "not WR" output port used to communicate with PSUs
+static void decodeDataSentToPcf8574s( uint16_t *DacRawValuePtr, uint16_t Pcf8574Data ){
+	uint8_t AddressOfPsu = 0;
+	for (uint8_t J = 0; J < PSU_ADDRESS_BITS; J++){
+		if ((Pcf8574Data & ConvertionPsuAddressToPcf8574[J]) != 0){
+			AddressOfPsu |= (1 << J);
+		}
+	}
+	if (AddressOfPsu < NUMBER_OF_POWER_SUPPLIES){
+		DacRawValuePtr[AddressOfPsu] = 0;
+		for (uint8_t J = 0; J < DAC_NUMBER_OF_BITS; J++){
+			if ((Pcf8574Data & ConvertionDacToPcf8574[J]) != 0){
+				DacRawValuePtr[AddressOfPsu] |= (1 << J);
+			}
+		}
+	}
+}
+
+/// @brief This function initializes the module variables and peripherals.
 void initializePsuTalks(void){
 	gpio_init(GPIO_FOR_NOT_WR_OUTPUT);
 	gpio_set_dir(GPIO_FOR_NOT_WR_OUTPUT, GPIO_OUT);
 	gpio_put( GPIO_FOR_NOT_WR_OUTPUT, true );	// the idle state is high
 
-	StateCode = STATE_IDLE;
+	WritingToDacState = WRITING_TO_DAC_INITIALIZE;
 	atomic_store_explicit( &I2cConsecutiveErrors, 0, memory_order_release );
 
     gpio_init(GPIO_FOR_POWER_CONTACTOR);
@@ -184,233 +183,106 @@ void initializePsuTalks(void){
 	gpio_set_dir(GPIO_FOR_PSU_LOGIC_FEEDBACK, GPIO_IN);
 }
 
-/// @brief This function is called periodically by the time interrupt handler
-void psuTalksTimeTick(void){
+/// @brief This function provides DAC write support for all power supplies
+/// This function drives the state machines of each PSU. Each PSU has its own state machine,
+/// which allows them to operate simultaneously. All state machines are identical.
+/// This function is called periodically by the time interrupt handler.
+void writeToDacStateMachine(void){
 	static uint16_t WorkingDataForTwoPcf8574[NUMBER_OF_POWER_SUPPLIES];
-	static uint32_t RampDelay;
-	static bool OldSig2;
+	static uint32_t RampDelay[NUMBER_OF_POWER_SUPPLIES];
 	bool IsI2cSuccess;
-	bool IsExit = false;
 
-	if (atomic_load_explicit( &OrderCode, memory_order_acquire ) == ORDER_COMMAND_PC){
-		StateCode = STATE_PC_PCX_START;
-		int TemporarySelectedChannel = atomic_load_explicit(&SelectedChannel, memory_order_acquire);
-		WrittenRequiredValue[TemporarySelectedChannel] = RequiredDacValue[TemporarySelectedChannel];
-		WorkingDataForTwoPcf8574[TemporarySelectedChannel] = prepareDataForTwoPcf8574( RequiredDacValue[TemporarySelectedChannel],
-				AddressTable[TemporarySelectedChannel] );
-		atomic_store_explicit( &OrderCode, ORDER_PROCESSING, memory_order_release );
-
-		IsExit = true;
-	}
-
-	if (!IsExit && (atomic_load_explicit( &OrderCode, memory_order_acquire ) == ORDER_COMMAND_SET)){
-		StateCode = STATE_SET_START;
-		RampDelay = 0;
-		int TemporarySelectedChannel = atomic_load_explicit(&SelectedChannel, memory_order_acquire);
-		uint16_t TemporaryRequiredDacValue;
-
-		calculateRampStep( &TemporaryRequiredDacValue, RequiredDacValue[TemporarySelectedChannel],
-				WrittenRequiredValue[TemporarySelectedChannel] );
-
-		WrittenRequiredValue[TemporarySelectedChannel] = TemporaryRequiredDacValue;
-		WorkingDataForTwoPcf8574[TemporarySelectedChannel] = prepareDataForTwoPcf8574( TemporaryRequiredDacValue, AddressTable[TemporarySelectedChannel] );
-		atomic_store_explicit( &OrderCode, ORDER_PROCESSING, memory_order_release );
-
-		IsExit = true;
-	}
-
-	if (!IsExit && (atomic_load_explicit( &OrderCode, memory_order_acquire ) == ORDER_COMMAND_POWER_ON)){
-		StateCode = STATE_POWER1_TEST_000_START;
-		RampDelay = 0;
-		int TemporarySelectedChannel = atomic_load_explicit(&SelectedChannel, memory_order_acquire);
-		uint16_t TemporaryRequiredDacValue;
-
-		calculateRampStep( &TemporaryRequiredDacValue, RequiredDacValue[TemporarySelectedChannel],
-				WrittenRequiredValue[TemporarySelectedChannel] );
-
-		WrittenRequiredValue[TemporarySelectedChannel] = TemporaryRequiredDacValue;
-		WorkingDataForTwoPcf8574[TemporarySelectedChannel] = prepareDataForTwoPcf8574( TemporaryRequiredDacValue, AddressTable[TemporarySelectedChannel] );
-		atomic_store_explicit( &OrderCode, ORDER_PROCESSING, memory_order_release );
-
-		IsExit = true;
-	}
-
-	if (!IsExit && (atomic_load_explicit( &OrderCode, memory_order_acquire ) == ORDER_PROCESSING)){
-		int TemporarySelectedChannel;
-
-		switch( StateCode ){
-		case STATE_PC_PCX_START:
-			TemporarySelectedChannel = atomic_load_explicit(&SelectedChannel, memory_order_acquire);
-			IsI2cSuccess = i2cWrite( PCF8574_ADDRESS_2, (uint8_t)WorkingDataForTwoPcf8574[TemporarySelectedChannel] );
-			if (IsI2cSuccess){
-				atomic_store_explicit( &I2cConsecutiveErrors, 0, memory_order_release );
-				StateCode = STATE_PC_PCX_1ST_BYTE;
-			}
-			else{
-				// Exception handling
-				if (atomic_load_explicit( &I2cConsecutiveErrors, memory_order_acquire ) < I2C_CONSECUTIVE_ERRORS_LIMIT){
-					atomic_fetch_add_explicit( &I2cConsecutiveErrors, 1, memory_order_acq_rel );
-				}
-				else{
-					StateCode = STATE_ERROR_I2C;
-					atomic_store_explicit( &OrderCode, ORDER_COMPLETED, memory_order_release );
-				}
-			}
-			break;
-
-		case STATE_PC_PCX_1ST_BYTE:
-			TemporarySelectedChannel = atomic_load_explicit(&SelectedChannel, memory_order_acquire);
-			IsI2cSuccess = i2cWrite( PCF8574_ADDRESS_1, (uint8_t)(WorkingDataForTwoPcf8574[TemporarySelectedChannel] >> 8) );
-			if (IsI2cSuccess){
-				atomic_store_explicit( &I2cConsecutiveErrors, 0, memory_order_release );
-				StateCode = STATE_PC_PCX_2ND_BYTE;
-			}
-			else{
-				// Exception handling
-				if (atomic_load_explicit( &I2cConsecutiveErrors, memory_order_acquire ) < I2C_CONSECUTIVE_ERRORS_LIMIT){
-					atomic_fetch_add_explicit( &I2cConsecutiveErrors, 1, memory_order_acq_rel );
-				}
-				else{
-					StateCode = STATE_ERROR_I2C;
-					atomic_store_explicit( &OrderCode, ORDER_COMPLETED, memory_order_release );
-				}
-			}
-			break;
-
-		case STATE_PC_PCX_2ND_BYTE:
-			// writing to ADC (signal /WR)
-			gpio_put( GPIO_FOR_NOT_WR_OUTPUT, false );
-			StateCode = STATE_PC_PCX_NOT_WR_SIGNAL;
-			break;
-
-		case STATE_PC_PCX_NOT_WR_SIGNAL:
-			gpio_put( GPIO_FOR_NOT_WR_OUTPUT, true );
-
-			changeDebugPin1(true);
-
-			printf( "%12llu  i2c\t%d\n", time_us_64(),
-					WrittenRequiredValue[atomic_load_explicit(&SelectedChannel, memory_order_acquire)]-OFFSET_FOR_DEBUGGING );
-
-			changeDebugPin1(false);		// measured time = 150 us;  2025-10-30
-
-			StateCode = STATE_IDLE;
-			atomic_store_explicit( &OrderCode, ORDER_COMPLETED, memory_order_release );
-			break;
-
-		case STATE_SET_START:
-			if (RampDelay > 0){
-				RampDelay--;
-			}
-			else{
-				OldSig2 = getLogicFeedbackFromPsu();
-
-				TemporarySelectedChannel = atomic_load_explicit(&SelectedChannel, memory_order_acquire);
-				IsI2cSuccess = i2cWrite( PCF8574_ADDRESS_2, (uint8_t)WorkingDataForTwoPcf8574[TemporarySelectedChannel] );
-				if (IsI2cSuccess){
-					atomic_store_explicit( &I2cConsecutiveErrors, 0, memory_order_release );
-					StateCode = STATE_SET_1ST_BYTE;
-				}
-				else{
-					// Exception handling
-					if (atomic_load_explicit( &I2cConsecutiveErrors, memory_order_acquire ) < I2C_CONSECUTIVE_ERRORS_LIMIT){
-						atomic_fetch_add_explicit( &I2cConsecutiveErrors, 1, memory_order_acq_rel );
-					}
-					else{
-						StateCode = STATE_ERROR_I2C;
-						atomic_store_explicit( &OrderCode, ORDER_COMPLETED, memory_order_release );
-					}
-				}
-			}
-			break;
-
-		case STATE_SET_1ST_BYTE:
-			TemporarySelectedChannel = atomic_load_explicit(&SelectedChannel, memory_order_acquire);
-			IsI2cSuccess = i2cWrite( PCF8574_ADDRESS_1, (uint8_t)(WorkingDataForTwoPcf8574[TemporarySelectedChannel] >> 8) );
-			if (IsI2cSuccess){
-				atomic_store_explicit( &I2cConsecutiveErrors, 0, memory_order_release );
-				StateCode = STATE_SET_2ND_BYTE;
-			}
-			else{
-				// Exception handling
-				if (atomic_load_explicit( &I2cConsecutiveErrors, memory_order_acquire ) < I2C_CONSECUTIVE_ERRORS_LIMIT){
-					atomic_fetch_add_explicit( &I2cConsecutiveErrors, 1, memory_order_acq_rel );
-				}
-				else{
-					StateCode = STATE_ERROR_I2C;
-					atomic_store_explicit( &OrderCode, ORDER_COMPLETED, memory_order_release );
-				}
-			}
-			break;
-
-		case STATE_SET_2ND_BYTE:
-			// writing to ADC (signal /WR)
-			gpio_put( GPIO_FOR_NOT_WR_OUTPUT, false );
-			StateCode = STATE_SET_NOT_WR_SIGNAL;
-			break;
-
-		case STATE_SET_NOT_WR_SIGNAL:
-			gpio_put( GPIO_FOR_NOT_WR_OUTPUT, true );
-
-			bool Sig2Value = getLogicFeedbackFromPsu();
-
-			changeDebugPin1(true);
-
-			printf( "%12llu  i2c\t%d\t%c %c\n",
-					time_us_64(),
-					WrittenRequiredValue[atomic_load_explicit(&SelectedChannel, memory_order_acquire)]-OFFSET_FOR_DEBUGGING,
-					OldSig2? 'H':'L',
-					Sig2Value? 'H':'L' );
-
-			changeDebugPin1(false);		// measured time = 150 us;  2025-10-30
-
-			TemporarySelectedChannel = atomic_load_explicit(&SelectedChannel, memory_order_acquire);
-			if (RequiredDacValue[TemporarySelectedChannel] == WrittenRequiredValue[TemporarySelectedChannel]){
-				// The ramp is completed
-
-				StateCode = STATE_IDLE;
-				atomic_store_explicit( &OrderCode, ORDER_COMPLETED, memory_order_release );
-			}
-			else{
-				// The ramp is continuing
-
-				StateCode = STATE_SET_START;
-				TemporarySelectedChannel = atomic_load_explicit(&SelectedChannel, memory_order_acquire);
-				uint16_t TemporaryRequiredDacValue;
-
-				calculateRampStep( &TemporaryRequiredDacValue, RequiredDacValue[TemporarySelectedChannel],
-						WrittenRequiredValue[TemporarySelectedChannel] );
-
-				WrittenRequiredValue[TemporarySelectedChannel] = TemporaryRequiredDacValue;
-				WorkingDataForTwoPcf8574[TemporarySelectedChannel] =
-						prepareDataForTwoPcf8574( TemporaryRequiredDacValue, AddressTable[TemporarySelectedChannel] );
-				RampDelay = RAMP_DELAY;
-			}
-			break;
-
-		case STATE_ERROR_I2C:
-
-			// todo Exception handling
-
-			StateCode = STATE_IDLE;
-			break;
-
-		case STATE_IDLE:
-			break;
-
-		default:
+	assert( WritingToDacChannel < NUMBER_OF_POWER_SUPPLIES );
+	switch( WritingToDacState ){
+	case WRITING_TO_DAC_INITIALIZE:
+		gpio_put( GPIO_FOR_NOT_WR_OUTPUT, true );
+		WritingToDacChannel++;
+		if (NUMBER_OF_POWER_SUPPLIES == WritingToDacChannel){
+			WritingToDacChannel = 0;
 		}
+
+		if (atomic_load_explicit( &OrderCode, memory_order_acquire ) == ORDER_COMMAND_PC){
+			int TemporarySelectedChannel = atomic_load_explicit(&OrderChannel, memory_order_acquire);
+			assert( TemporarySelectedChannel < NUMBER_OF_POWER_SUPPLIES );
+
+			WorkingDataForTwoPcf8574[TemporarySelectedChannel] = prepareDataForTwoPcf8574( RequiredDacValue[TemporarySelectedChannel],
+					AddressTable[TemporarySelectedChannel] );
+
+			atomic_store_explicit( &OrderCode, ORDER_ACCEPTED, memory_order_release );
+
+		}
+
+		WritingToDacState = WRITING_TO_DAC_SEND_1ST_BYTE;
+		break;
+
+	case WRITING_TO_DAC_SEND_1ST_BYTE:
+		IsI2cSuccess = i2cWrite( PCF8574_ADDRESS_2, (uint8_t)WorkingDataForTwoPcf8574[WritingToDacChannel] );
+		if (IsI2cSuccess){
+			atomic_store_explicit( &I2cConsecutiveErrors, 0, memory_order_release );
+			WritingToDacState = WRITING_TO_DAC_SEND_2ND_BYTE;
+		}
+		else{
+			// Exception handling
+			if (atomic_load_explicit( &I2cConsecutiveErrors, memory_order_acquire ) < I2C_CONSECUTIVE_ERRORS_LIMIT){
+				atomic_fetch_add_explicit( &I2cConsecutiveErrors, 1, memory_order_acq_rel );
+			}
+			else{
+				WritingToDacState = WRITING_TO_DAC_FAILURE;
+			}
+		}
+		break;
+
+	case WRITING_TO_DAC_SEND_2ND_BYTE:
+		IsI2cSuccess = i2cWrite( PCF8574_ADDRESS_1, (uint8_t)(WorkingDataForTwoPcf8574[WritingToDacChannel] >> 8) );
+		if (IsI2cSuccess){
+			atomic_store_explicit( &I2cConsecutiveErrors, 0, memory_order_release );
+			WritingToDacState = WRITING_TO_DAC_LATCH_DATA;
+		}
+		else{
+			// Exception handling
+			if (atomic_load_explicit( &I2cConsecutiveErrors, memory_order_acquire ) < I2C_CONSECUTIVE_ERRORS_LIMIT){
+				atomic_fetch_add_explicit( &I2cConsecutiveErrors, 1, memory_order_acq_rel );
+			}
+			else{
+				WritingToDacState = WRITING_TO_DAC_FAILURE;
+			}
+		}
+		break;
+
+	case WRITING_TO_DAC_LATCH_DATA:
+		// writing to ADC (signal /WR)
+		gpio_put( GPIO_FOR_NOT_WR_OUTPUT, false );
+		WrittenRequiredValue[WritingToDacChannel] = RequiredDacValue[WritingToDacChannel];
+		decodeDataSentToPcf8574s( &DebugValueWrittenToDac[0], DebugValueWrittenToPCFs );
+
+		changeDebugPin1(true);
+		printf( "%12llu  i2c\t%d\n", time_us_64(),
+				RequiredDacValue[WritingToDacChannel]-OFFSET_FOR_DEBUGGING );
+		changeDebugPin1(false);		// measured time = 150 us;  2025-10-30
+
+		WritingToDacState = WRITING_TO_DAC_INITIALIZE;
+		break;
+
+	case WRITING_TO_DAC_FAILURE:
+
+		// todo Exception handling
+
+		WritingToDacState = WRITING_TO_DAC_INITIALIZE;
+		break;
+
+	default:
 	}
 
 #if 0
 	// debugging
-	static StatesOfPsuFsm OldStateCode;
+	static WritingToDacStates OldStateCode;
 
 	if (!getPushButtonState()){
-		StateCode = STATE_IDLE;
+		WritingToDacState = WRITING_TO_DAC_SEND_1ST_BYTE;
 	}
-	if (OldStateCode != StateCode){
-		printf( "state %d\n", StateCode );
-		OldStateCode = StateCode;
+	if (OldStateCode != WritingToDacState){
+		printf( "state %d\n", WritingToDacState );
+		OldStateCode = WritingToDacState;
 	}
 #endif
 }
@@ -430,7 +302,7 @@ static void calculateRampStep( uint16_t *ResultDacValue, uint16_t TargetValue, u
 	uint16_t RampStep = FAST_RAMP_STEP_IN_DAC_UNITS;
 	if (PresentValue > (OFFSET_IN_DAC_UNITS + NEAR_ZERO_REGION_IN_DAC_UNITS)){
 		if (TargetValue < (OFFSET_IN_DAC_UNITS + NEAR_ZERO_REGION_IN_DAC_UNITS)){
-			//			              <----X----<                   the arrow indicates the present value and the required value
+			//			           |  <----X----<                   the arrow indicates the present value and the required value
 			//			-----------|---0---|----------------> I
 			TemporaryRequiredDacValue = (OFFSET_IN_DAC_UNITS + NEAR_ZERO_REGION_IN_DAC_UNITS);
 		}
@@ -444,7 +316,7 @@ static void calculateRampStep( uint16_t *ResultDacValue, uint16_t TargetValue, u
 	}
 	else if (PresentValue < (OFFSET_IN_DAC_UNITS - NEAR_ZERO_REGION_IN_DAC_UNITS)){
 		if (TargetValue   > (OFFSET_IN_DAC_UNITS - NEAR_ZERO_REGION_IN_DAC_UNITS)){
-			//			      >----X---->
+			//			      >----X---->  |
 			//			-----------|---0---|----------------> I
 			TemporaryRequiredDacValue = (OFFSET_IN_DAC_UNITS - NEAR_ZERO_REGION_IN_DAC_UNITS);
 		}
@@ -495,7 +367,3 @@ static void calculateRampStep( uint16_t *ResultDacValue, uint16_t TargetValue, u
 
 	*ResultDacValue = TemporaryRequiredDacValue;
 }
-
-
-
-

@@ -1,2 +1,2 @@
-gtkterm -p /dev/ttyACM0 &
-exit
+gtkterm -p /dev/ttyACM0
+

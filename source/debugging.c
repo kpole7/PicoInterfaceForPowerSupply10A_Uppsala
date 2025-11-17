@@ -15,6 +15,9 @@
 #define GPIO_FOR_DEBUG_PIN_1	15
 #define GPIO_FOR_DEBUG_PIN_2	14
 
+
+uint16_t DebugValueWrittenToPCFs, DebugValueWrittenToDac[NUMBER_OF_POWER_SUPPLIES];
+
 //---------------------------------------------------------------------------------------------------
 // Function definitions
 //---------------------------------------------------------------------------------------------------

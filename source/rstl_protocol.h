@@ -2,57 +2,26 @@
 /// @brief This module provides a higher layer of communication with the master unit
 ///
 /// The module acts as a slave. It receives commands from the master unit and
-/// sends the responses.  The protocol consists from the following text commands:
-///
-/// 1.1. Command **Measure Current**: `MC\r\n`
-///
-/// 1.2. Exemplary response: `-10.34\r\n\n>`
-///
-/// 2.1. Exemplary command **Program Current**: `PC-5.67\r\n`
-///
-/// 2.2. Response: `\r\n\n>`
-///
-/// 3.1. Command **Place software revision**: `?M\r\n`
-///
-/// 3.2. Exemplary response: `Rev. 111.222.333 2025-12-31 23:59:59\r\n\n>`
-///
-/// 4.1. Command **Current DAC programming value**: `?C\r\n`
-///
-/// 4.2. Exemplary response: `-2.34\r\n\n>`
-///
-/// 5.1. Command **Get current direction**: `?Y\r\n`
-///
-/// 5.2. Exemplary response: `1\r\n\n>`
-///
-/// 6.1. Exemplary command **Select channel**: `Z2\r\n`
-///
-/// 6.2. Response: `\r\n\n>`
-///
-/// 6.1. Command **Get channel**: `?Z\r\n`
-///
-/// 6.2. Exemplary response: `1\r\n\n>`
-///
+/// sends the responses.
 
 #ifndef SOURCE_RSTL_PROTOCOL_H_
 #define SOURCE_RSTL_PROTOCOL_H_
 
 #include <stdatomic.h>
+#include "config.h"
 #include "uart_talks.h"
 
 //---------------------------------------------------------------------------------------------------
 // Macro directives
 //---------------------------------------------------------------------------------------------------
 
-#define NUMBER_OF_POWER_SUPPLIES	4
+#define COMMAND_BUFFER_LENGTH			(LONGEST_COMMAND_LENGTH+10)
 
-#define COMMAND_BUFFER_LENGTH		(LONGEST_COMMAND_LENGTH+10)
-
-#define ORDER_NONE					0
-#define ORDER_PROCESSING			1
-#define ORDER_COMPLETED				2
-#define ORDER_COMMAND_PC			3
-#define ORDER_COMMAND_SET			4
-#define ORDER_COMMAND_POWER_ON		5
+#define ORDER_NONE						0
+#define ORDER_ACCEPTED					1
+#define ORDER_COMMAND_PC				2
+#define ORDER_COMMAND_SET				3
+#define ORDER_COMMAND_POWER_ON			4
 
 #define INITIAL_DAC_VALUE				0x800
 
@@ -100,11 +69,15 @@ extern char NewCommand[COMMAND_BUFFER_LENGTH];
 
 /// @brief Currently selected (active) power supply unit
 /// All commands related to power supply settings apply to this device
-extern atomic_int SelectedChannel;
+extern atomic_int UserSelectedChannel;
 
 /// @brief This is a code of an action that cannot be executed immediately but must be processed by a state machine
 /// The variable can be modified in the main loop and in the timer interrupt handler
 extern atomic_int OrderCode;
+
+/// @brief This is a power supply unit to which OrderCode refers
+/// The variable can be modified in the main loop and in the timer interrupt handler
+extern atomic_int OrderChannel;
 
 /// @brief Setpoint value for a DAC
 extern volatile uint16_t RequiredDacValue[NUMBER_OF_POWER_SUPPLIES];
