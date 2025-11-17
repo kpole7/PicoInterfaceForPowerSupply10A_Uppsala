@@ -203,6 +203,13 @@ void writeToDacStateMachine(void){
 	switch( WritingToDacState ){
 	case WRITING_TO_DAC_INITIALIZE:
 		gpio_put( GPIO_FOR_NOT_WR_OUTPUT, true );
+
+
+		WritingToDacIsValidData[WritingToDacChannel] = false;
+
+
+
+
 		WritingToDacChannel++;
 		if (NUMBER_OF_POWER_SUPPLIES == WritingToDacChannel){
 			WritingToDacChannel = 0;
@@ -211,14 +218,11 @@ void writeToDacStateMachine(void){
 		if (atomic_load_explicit( &OrderCode, memory_order_acquire ) == ORDER_COMMAND_PC){
 			int TemporarySelectedChannel = atomic_load_explicit(&OrderChannel, memory_order_acquire);
 			assert( TemporarySelectedChannel < NUMBER_OF_POWER_SUPPLIES );
-
-			WorkingDataForTwoPcf8574[TemporarySelectedChannel] = prepareDataForTwoPcf8574( RequiredDacValue[TemporarySelectedChannel],
+			InstantaneousSetpointDacValue[TemporarySelectedChannel] = UserSetpointDacValue[TemporarySelectedChannel];
+			WorkingDataForTwoPcf8574[TemporarySelectedChannel] = prepareDataForTwoPcf8574( InstantaneousSetpointDacValue[TemporarySelectedChannel],
 					AddressTable[TemporarySelectedChannel] );
-
 			WritingToDacIsValidData[TemporarySelectedChannel] = true;
-
 			atomic_store_explicit( &OrderCode, ORDER_ACCEPTED, memory_order_release );
-
 		}
 
 		WritingToDacState = WRITING_TO_DAC_SEND_1ST_BYTE;
@@ -272,18 +276,17 @@ void writeToDacStateMachine(void){
 		if (WritingToDacIsValidData[WritingToDacChannel]){
 			// writing to ADC (signal /WR)
 			gpio_put( GPIO_FOR_NOT_WR_OUTPUT, false );
-			WrittenRequiredValue[WritingToDacChannel] = RequiredDacValue[WritingToDacChannel];
-			WritingToDacIsValidData[WritingToDacChannel] = false;
+			WrittenToDacValue[WritingToDacChannel] = InstantaneousSetpointDacValue[WritingToDacChannel];
 
 			uint32_t DacAddress = decodeDataSentToPcf8574s( &DebugValueWrittenToDac[0], DebugValueWrittenToPCFs );
-
 			changeDebugPin1(true);
 			printf( "%12llu  i2c\t%d %d\t%d %d\n", time_us_64(),
 					WritingToDacChannel,
-					RequiredDacValue[WritingToDacChannel]-OFFSET_FOR_DEBUGGING,
+					InstantaneousSetpointDacValue[WritingToDacChannel]-OFFSET_FOR_DEBUGGING,
 					DacAddress,
 					DebugValueWrittenToDac[DacAddress]-OFFSET_FOR_DEBUGGING );
 			changeDebugPin1(false);		// measured time = ? us;  2025-10-??
+
 
 		}
 		WritingToDacState = WRITING_TO_DAC_INITIALIZE;

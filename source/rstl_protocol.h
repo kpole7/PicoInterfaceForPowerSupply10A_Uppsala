@@ -80,10 +80,13 @@ extern atomic_int OrderCode;
 extern atomic_int OrderChannel;
 
 /// @brief Setpoint value for a DAC
-extern volatile uint16_t RequiredDacValue[NUMBER_OF_POWER_SUPPLIES];
+extern volatile uint16_t UserSetpointDacValue[NUMBER_OF_POWER_SUPPLIES];
 
-/// @brief Set-point value for the DAC written to the DAC
-extern volatile uint16_t WrittenRequiredValue[NUMBER_OF_POWER_SUPPLIES];
+/// @brief Setpoint value for the DAC (number from 0 to 0xFFF) at a given moment (follows the ramp)
+extern volatile uint16_t InstantaneousSetpointDacValue[NUMBER_OF_POWER_SUPPLIES];
+
+/// @brief Set-point value written to the DAC (number from 0 to 0xFFF)
+extern volatile uint16_t WrittenToDacValue[NUMBER_OF_POWER_SUPPLIES];
 
 //---------------------------------------------------------------------------------------------------
 // Function prototypes

@@ -37,10 +37,13 @@ atomic_int OrderCode;
 atomic_int OrderChannel;
 
 /// @brief User's set-point value for the DAC (number from 0 to 0xFFF)
-volatile uint16_t RequiredDacValue[NUMBER_OF_POWER_SUPPLIES];
+volatile uint16_t UserSetpointDacValue[NUMBER_OF_POWER_SUPPLIES];
 
-/// @brief Set-point value for the DAC written to the DAC (number from 0 to 0xFFF)
-volatile uint16_t WrittenRequiredValue[NUMBER_OF_POWER_SUPPLIES];
+/// @brief Setpoint value for the DAC (number from 0 to 0xFFF) at a given moment (follows the ramp)
+volatile uint16_t InstantaneousSetpointDacValue[NUMBER_OF_POWER_SUPPLIES];
+
+/// @brief Set-point value written to the DAC (number from 0 to 0xFFF)
+volatile uint16_t WrittenToDacValue[NUMBER_OF_POWER_SUPPLIES];
 
 //---------------------------------------------------------------------------------------------------
 // Local variables
@@ -59,8 +62,8 @@ static float RequiredAmperesValue[NUMBER_OF_POWER_SUPPLIES];
 void initializeRstlProtocol(void){
 	atomic_store_explicit( &UserSelectedChannel, 0, memory_order_release );
 	for (uint8_t J = 0; J < NUMBER_OF_POWER_SUPPLIES; J++){
-		RequiredDacValue[J] = INITIAL_DAC_VALUE;
-		WrittenRequiredValue[J] = INITIAL_DAC_VALUE;
+		UserSetpointDacValue[J] = INITIAL_DAC_VALUE;
+		WrittenToDacValue[J] = INITIAL_DAC_VALUE;
 		RequiredAmperesValue[J] = 0.0;
 	}
 	atomic_store_explicit( &OrderCode, ORDER_NONE, memory_order_release );
@@ -103,7 +106,7 @@ CommandErrors executeCommand(void){
 				// essential action
 				int TemporarySelectedChannel = atomic_load_explicit(&UserSelectedChannel, memory_order_acquire);
 				if (TemporarySelectedChannel < NUMBER_OF_POWER_SUPPLIES){
-					RequiredDacValue[TemporarySelectedChannel] = (uint16_t)DacValue;
+					UserSetpointDacValue[TemporarySelectedChannel] = (uint16_t)DacValue;
 					RequiredAmperesValue[TemporarySelectedChannel] = (float)DacValue;
 					RequiredAmperesValue[TemporarySelectedChannel] -= (float)OFFSET_IN_DAC_UNITS;
 					RequiredAmperesValue[TemporarySelectedChannel] *= DAC_TO_AMPERES_COEFFICIENT;
@@ -144,7 +147,7 @@ CommandErrors executeCommand(void){
 					}
 					int TemporarySelectedChannel = atomic_load_explicit(&UserSelectedChannel, memory_order_acquire);
 					if (TemporarySelectedChannel < NUMBER_OF_POWER_SUPPLIES){
-						RequiredDacValue[TemporarySelectedChannel] = (uint16_t)ValueInDacUnits;
+						UserSetpointDacValue[TemporarySelectedChannel] = (uint16_t)ValueInDacUnits;
 						RequiredAmperesValue[TemporarySelectedChannel] = CommandFloatingPointArgument;
 					}
 					atomic_store_explicit( &OrderCode, ORDER_COMMAND_PC, memory_order_release );
@@ -172,7 +175,7 @@ CommandErrors executeCommand(void){
 		}
 		printf( "cmd ?PC\tE=%d\tch=%u\t0x%04X\n", ErrorCode,
 				(unsigned)atomic_load_explicit(&UserSelectedChannel, memory_order_acquire)+1,
-				RequiredDacValue[atomic_load_explicit(&UserSelectedChannel, memory_order_acquire)] );
+				UserSetpointDacValue[atomic_load_explicit(&UserSelectedChannel, memory_order_acquire)] );
 	}
 	else if (strstr(NewCommand, "USTAW") == NewCommand){ // "USTAW" command
 		float CommandFloatingPointArgument = NAN;
@@ -198,7 +201,7 @@ CommandErrors executeCommand(void){
 					}
 					int TemporarySelectedChannel = atomic_load_explicit(&UserSelectedChannel, memory_order_acquire);
 					if (TemporarySelectedChannel < NUMBER_OF_POWER_SUPPLIES){
-						RequiredDacValue[TemporarySelectedChannel] = (uint16_t)ValueInDacUnits;
+						UserSetpointDacValue[TemporarySelectedChannel] = (uint16_t)ValueInDacUnits;
 						RequiredAmperesValue[TemporarySelectedChannel] = CommandFloatingPointArgument;
 					}
 					atomic_store_explicit( &OrderCode, ORDER_COMMAND_SET, memory_order_release );
