@@ -30,7 +30,7 @@ extern volatile uint16_t InstantaneousSetpointDacValue[NUMBER_OF_POWER_SUPPLIES]
 extern volatile uint16_t WrittenToDacValue[NUMBER_OF_POWER_SUPPLIES];
 
 /// @brief This variable is used in a simple state machine
-extern volatile bool WritingToDacIsValidData[NUMBER_OF_POWER_SUPPLIES];
+extern volatile bool WritingToDac_IsValidData[NUMBER_OF_POWER_SUPPLIES];
 
 //---------------------------------------------------------------------------------------------------
 // Function prototypes
@@ -45,6 +45,8 @@ void setMainContactorState( bool IsMainContactorStateOn );
 /// @brief This function reads the logical state of the signal marked as "Sig2" in the diagram
 bool getLogicFeedbackFromPsu( void );
 
-void psuTalksStateMachine( uint32_t Channel );
+/// @brief This function supervises ramp execution after a step has been completed and handles orders for DACs
+/// @param Channel channel served in the last cycle
+void ordersForDacsAndRampsGeneration( uint32_t Channel );
 
 #endif // SOURCE_PSU_TALKS_H_

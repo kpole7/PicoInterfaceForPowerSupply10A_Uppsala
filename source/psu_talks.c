@@ -29,8 +29,8 @@
 #define SLOW_RAMP_STEP_IN_DAC_UNITS		1
 
 /// This constant defines the time intervals for the ramp generator
-/// For ? intervals ? measured in debug mode (SIMULATE_HARDWARE_PSU == 1) 2025-11-14
-#define RAMP_DELAY						202
+/// For ? intervals ? measured in debug mode (SIMULATE_HARDWARE_PSU == 1) 2025-11-?
+#define RAMP_DELAY						8 // 202
 
 //---------------------------------------------------------------------------------------------------
 // Global variables
@@ -46,8 +46,9 @@ volatile uint16_t InstantaneousSetpointDacValue[NUMBER_OF_POWER_SUPPLIES];
 volatile uint16_t WrittenToDacValue[NUMBER_OF_POWER_SUPPLIES];
 
 /// @brief This variable is used in a simple state machine
-volatile bool WritingToDacIsValidData[NUMBER_OF_POWER_SUPPLIES];
+volatile bool WritingToDac_IsValidData[NUMBER_OF_POWER_SUPPLIES];
 
+static uint32_t WritingToDac_RampDelay[NUMBER_OF_POWER_SUPPLIES];
 
 //---------------------------------------------------------------------------------------------------
 // Function prototypes
@@ -57,10 +58,10 @@ volatile bool WritingToDacIsValidData[NUMBER_OF_POWER_SUPPLIES];
 /// If the ramp crosses zero, it may require additional slowdown.
 /// The true zero level is an analog value, so thresholds slightly below zero and slightly above zero are necessary.
 /// We never know exactly what digital value corresponds to analog zero (furthermore, a difference should be made between "0+" and "0-").
-/// @param ResultDacValue points to a result value that is the DAC setpoint following the ramp towards the TargetValue
 /// @param TargetValue user-specified value converted to DAC setting
 /// @param PresentValue the last setting written to the DAC
-static void calculateRampStep( uint16_t *ResultDacValue, uint16_t TargetValue, uint16_t PresentValue );
+/// @return the DAC setpoint following the ramp towards the TargetValue
+static uint16_t calculateRampStep( uint16_t TargetValue, uint16_t PresentValue );
 
 //---------------------------------------------------------------------------------------------------
 // Function definitions
@@ -89,22 +90,63 @@ bool getLogicFeedbackFromPsu( void ){
 	return gpio_get( GPIO_FOR_PSU_LOGIC_FEEDBACK );
 }
 
-void psuTalksStateMachine( uint32_t Channel ){
+void ordersForDacsAndRampsGeneration( uint32_t Channel ){
+	int TemporaryUserSelectedChannel = -1;
+	int TemporaryOrderCode = atomic_load_explicit( &OrderCode, memory_order_acquire );
+	assert( TemporaryOrderCode < ORDER_COMMAND_ILLEGAL_CODE );
+	assert( TemporaryOrderCode >= ORDER_NONE );
+	assert( Channel < NUMBER_OF_POWER_SUPPLIES );
+	if (TemporaryOrderCode > ORDER_ACCEPTED){
+		TemporaryUserSelectedChannel = atomic_load_explicit(&OrderChannel, memory_order_acquire);
+		assert( TemporaryUserSelectedChannel < NUMBER_OF_POWER_SUPPLIES );
+		// There is a new order for the TemporarySelectedChannel
 
-	WritingToDacIsValidData[Channel] = false;
+		if (ORDER_COMMAND_PC == TemporaryOrderCode){
+			InstantaneousSetpointDacValue[TemporaryUserSelectedChannel] = UserSetpointDacValue[TemporaryUserSelectedChannel];
+			WritingToDac_IsValidData[TemporaryUserSelectedChannel] = true;
+			WritingToDac_RampDelay[Channel] = 0;
+		}
 
-	if (atomic_load_explicit( &OrderCode, memory_order_acquire ) == ORDER_COMMAND_PC){
-		int TemporarySelectedChannel = atomic_load_explicit(&OrderChannel, memory_order_acquire);
-		assert( TemporarySelectedChannel < NUMBER_OF_POWER_SUPPLIES );
-		InstantaneousSetpointDacValue[TemporarySelectedChannel] = UserSetpointDacValue[TemporarySelectedChannel];
-		WritingToDacIsValidData[TemporarySelectedChannel] = true;
+		if (ORDER_COMMAND_SET == TemporaryOrderCode){
+			InstantaneousSetpointDacValue[TemporaryUserSelectedChannel] =
+					calculateRampStep( UserSetpointDacValue[TemporaryUserSelectedChannel], WrittenToDacValue[TemporaryUserSelectedChannel] );
+			WritingToDac_IsValidData[TemporaryUserSelectedChannel] = true;
+			WritingToDac_RampDelay[TemporaryUserSelectedChannel] = 0;
+		}
+
 		atomic_store_explicit( &OrderCode, ORDER_ACCEPTED, memory_order_release );
 	}
 
+	if (TemporaryUserSelectedChannel != Channel){
+		if (WrittenToDacValue[Channel] == UserSetpointDacValue[Channel]){
+			// there is nothing to do
+			WritingToDac_IsValidData[Channel] = false;
+			WritingToDac_RampDelay[Channel] = 0;
+		}
+		else{
+			// The ramp continuation
+			if (0 == WritingToDac_RampDelay[Channel]){
+				WritingToDac_RampDelay[Channel] = RAMP_DELAY;
+			}
+			else{
+				WritingToDac_RampDelay[Channel]--;
+			}
 
+			if (0 == WritingToDac_RampDelay[Channel]){
+				// next ramp step
+				InstantaneousSetpointDacValue[Channel] =
+						calculateRampStep( UserSetpointDacValue[Channel], WrittenToDacValue[Channel] );
+				WritingToDac_IsValidData[Channel] = true;
+			}
+			else{
+				// wait
+				WritingToDac_IsValidData[Channel] = false;
+			}
+		}
+	}
 }
 
-static void calculateRampStep( uint16_t *ResultDacValue, uint16_t TargetValue, uint16_t PresentValue ){
+static uint16_t calculateRampStep( uint16_t TargetValue, uint16_t PresentValue ){
 	uint16_t TemporaryRequiredDacValue = TargetValue;
 	uint16_t RampStep = FAST_RAMP_STEP_IN_DAC_UNITS;
 	if (PresentValue > (OFFSET_IN_DAC_UNITS + NEAR_ZERO_REGION_IN_DAC_UNITS)){
@@ -172,5 +214,5 @@ static void calculateRampStep( uint16_t *ResultDacValue, uint16_t TargetValue, u
 		}
 	}
 
-	*ResultDacValue = TemporaryRequiredDacValue;
+	return TemporaryRequiredDacValue;
 }

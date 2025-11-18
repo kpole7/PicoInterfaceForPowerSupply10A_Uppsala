@@ -205,8 +205,9 @@ CommandErrors executeCommand(void){
 				}
 			}
 		}
-		printf( "cmd ust\tE=%d\tch=%u\t%d\t0x%04X\n", ErrorCode,
+		printf( "%12llu\tUSTAW\t%u\tE=%d\t%d\t0x%04X\n", time_us_64(),
 				(unsigned)atomic_load_explicit(&UserSelectedChannel, memory_order_acquire)+1,
+				ErrorCode,
 				ValueInDacUnits-OFFSET_IN_DAC_UNITS, ValueInDacUnits );
 	}
 	else if (strstr(NewCommand, "Z") == NewCommand){ // "Select channel" command

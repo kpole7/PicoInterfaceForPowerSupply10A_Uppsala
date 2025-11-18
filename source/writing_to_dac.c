@@ -75,10 +75,10 @@ static const uint8_t AddressTable[NUMBER_OF_POWER_SUPPLIES] = {
 //---------------------------------------------------------------------------------------------------
 
 /// @brief This variable is used in a simple state machine
-static volatile WritingToDacStates WritingToDacState;
+static volatile WritingToDacStates WritingToDac_State;
 
 /// @brief This variable is used in a simple state machine
-static volatile uint32_t WritingToDacChannel;
+static volatile uint32_t WritingToDac_Channel;
 
 /// @brief This variable is used to monitor the I2C devices
 /// @todo exception handling
@@ -144,9 +144,9 @@ void initializeWritingToDacs(void){
 	gpio_put( GPIO_FOR_NOT_WR_OUTPUT, true );	// the idle state is high
 
 	for (uint32_t J = 0; J < NUMBER_OF_POWER_SUPPLIES; J++){
-		WritingToDacIsValidData[J] = false;
+		WritingToDac_IsValidData[J] = false;
 	}
-	WritingToDacState = WRITING_TO_DAC_INITIALIZE;
+	WritingToDac_State = WRITING_TO_DAC_INITIALIZE;
 	atomic_store_explicit( &I2cConsecutiveErrors, 0, memory_order_release );
 }
 
@@ -156,34 +156,33 @@ void initializeWritingToDacs(void){
 /// This function is called periodically by the time interrupt handler.
 void writeToDacStateMachine(void){
 	static uint16_t WorkingDataForTwoPcf8574;
-	static uint32_t RampDelay[NUMBER_OF_POWER_SUPPLIES];
 	bool IsI2cSuccess;
 
-	assert( WritingToDacChannel < NUMBER_OF_POWER_SUPPLIES );
-	switch( WritingToDacState ){
+	assert( WritingToDac_Channel < NUMBER_OF_POWER_SUPPLIES );
+	switch( WritingToDac_State ){
 	case WRITING_TO_DAC_INITIALIZE:
 		gpio_put( GPIO_FOR_NOT_WR_OUTPUT, true );
 
-		psuTalksStateMachine( WritingToDacChannel );
+		ordersForDacsAndRampsGeneration( WritingToDac_Channel );
 
-		WritingToDacChannel++;
-		if (NUMBER_OF_POWER_SUPPLIES == WritingToDacChannel){
-			WritingToDacChannel = 0;
+		WritingToDac_Channel++;
+		if (NUMBER_OF_POWER_SUPPLIES == WritingToDac_Channel){
+			WritingToDac_Channel = 0;
 		}
 
-		if (WritingToDacIsValidData[WritingToDacChannel]){
-			WorkingDataForTwoPcf8574 = prepareDataForTwoPcf8574( InstantaneousSetpointDacValue[WritingToDacChannel], AddressTable[WritingToDacChannel] );
+		if (WritingToDac_IsValidData[WritingToDac_Channel]){
+			WorkingDataForTwoPcf8574 = prepareDataForTwoPcf8574( InstantaneousSetpointDacValue[WritingToDac_Channel], AddressTable[WritingToDac_Channel] );
 		}
 
-		WritingToDacState = WRITING_TO_DAC_SEND_1ST_BYTE;
+		WritingToDac_State = WRITING_TO_DAC_SEND_1ST_BYTE;
 		break;
 
 	case WRITING_TO_DAC_SEND_1ST_BYTE:
-		if (WritingToDacIsValidData[WritingToDacChannel]){
+		if (WritingToDac_IsValidData[WritingToDac_Channel]){
 			IsI2cSuccess = i2cWrite( PCF8574_ADDRESS_2, (uint8_t)WorkingDataForTwoPcf8574 );
 			if (IsI2cSuccess){
 				atomic_store_explicit( &I2cConsecutiveErrors, 0, memory_order_release );
-				WritingToDacState = WRITING_TO_DAC_SEND_2ND_BYTE;
+				WritingToDac_State = WRITING_TO_DAC_SEND_2ND_BYTE;
 			}
 			else{
 				// Exception handling
@@ -191,21 +190,21 @@ void writeToDacStateMachine(void){
 					atomic_fetch_add_explicit( &I2cConsecutiveErrors, 1, memory_order_acq_rel );
 				}
 				else{
-					WritingToDacState = WRITING_TO_DAC_FAILURE;
+					WritingToDac_State = WRITING_TO_DAC_FAILURE;
 				}
 			}
 		}
 		else{
-			WritingToDacState = WRITING_TO_DAC_SEND_2ND_BYTE;
+			WritingToDac_State = WRITING_TO_DAC_SEND_2ND_BYTE;
 		}
 		break;
 
 	case WRITING_TO_DAC_SEND_2ND_BYTE:
-		if (WritingToDacIsValidData[WritingToDacChannel]){
+		if (WritingToDac_IsValidData[WritingToDac_Channel]){
 			IsI2cSuccess = i2cWrite( PCF8574_ADDRESS_1, (uint8_t)(WorkingDataForTwoPcf8574 >> 8) );
 			if (IsI2cSuccess){
 				atomic_store_explicit( &I2cConsecutiveErrors, 0, memory_order_release );
-				WritingToDacState = WRITING_TO_DAC_LATCH_DATA;
+				WritingToDac_State = WRITING_TO_DAC_LATCH_DATA;
 			}
 			else{
 				// Exception handling
@@ -213,40 +212,41 @@ void writeToDacStateMachine(void){
 					atomic_fetch_add_explicit( &I2cConsecutiveErrors, 1, memory_order_acq_rel );
 				}
 				else{
-					WritingToDacState = WRITING_TO_DAC_FAILURE;
+					WritingToDac_State = WRITING_TO_DAC_FAILURE;
 				}
 			}
 		}
 		else{
-			WritingToDacState = WRITING_TO_DAC_LATCH_DATA;
+			WritingToDac_State = WRITING_TO_DAC_LATCH_DATA;
 		}
 		break;
 
 	case WRITING_TO_DAC_LATCH_DATA:
-		if (WritingToDacIsValidData[WritingToDacChannel]){
+		if (WritingToDac_IsValidData[WritingToDac_Channel]){
 			// writing to ADC (signal /WR)
 			gpio_put( GPIO_FOR_NOT_WR_OUTPUT, false );
-			WrittenToDacValue[WritingToDacChannel] = InstantaneousSetpointDacValue[WritingToDacChannel];
+			WrittenToDacValue[WritingToDac_Channel] = InstantaneousSetpointDacValue[WritingToDac_Channel];
 
-			uint32_t DacAddress = decodeDataSentToPcf8574s( &DebugValueWrittenToDac[0], DebugValueWrittenToPCFs );
 			changeDebugPin1(true);
-			printf( "%12llu  i2c\t%d %d\t%d %d\n", time_us_64(),
-					WritingToDacChannel,
-					InstantaneousSetpointDacValue[WritingToDacChannel]-OFFSET_FOR_DEBUGGING,
+			uint32_t DacAddress = decodeDataSentToPcf8574s( &DebugValueWrittenToDac[0], DebugValueWrittenToPCFs );
+			printf( "%12llu\ti2c\t%d\t%d\t%d\t%d\n",
+					time_us_64(),
+					WritingToDac_Channel,
+					InstantaneousSetpointDacValue[WritingToDac_Channel]-OFFSET_FOR_DEBUGGING,
 					DacAddress,
 					DebugValueWrittenToDac[DacAddress]-OFFSET_FOR_DEBUGGING );
 			changeDebugPin1(false);		// measured time = ? us;  2025-10-??
 
 
 		}
-		WritingToDacState = WRITING_TO_DAC_INITIALIZE;
+		WritingToDac_State = WRITING_TO_DAC_INITIALIZE;
 		break;
 
 	case WRITING_TO_DAC_FAILURE:
 
 		// todo Exception handling
 
-		WritingToDacState = WRITING_TO_DAC_INITIALIZE;
+		WritingToDac_State = WRITING_TO_DAC_INITIALIZE;
 		break;
 
 	default:
@@ -257,11 +257,11 @@ void writeToDacStateMachine(void){
 	static WritingToDacStates OldStateCode;
 
 	if (!getPushButtonState()){
-		WritingToDacState = WRITING_TO_DAC_SEND_1ST_BYTE;
+		WritingToDac_State = WRITING_TO_DAC_SEND_1ST_BYTE;
 	}
-	if (OldStateCode != WritingToDacState){
-		printf( "state %d\n", WritingToDacState );
-		OldStateCode = WritingToDacState;
+	if (OldStateCode != WritingToDac_State){
+		printf( "state %d\n", WritingToDac_State );
+		OldStateCode = WritingToDac_State;
 	}
 #endif
 }
