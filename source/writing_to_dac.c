@@ -235,7 +235,7 @@ void writeToDacStateMachine(void){
 					InstantaneousSetpointDacValue[WritingToDac_Channel]-OFFSET_FOR_DEBUGGING,
 					DacAddress,
 					DebugValueWrittenToDac[DacAddress]-OFFSET_FOR_DEBUGGING );
-			changeDebugPin1(false);		// measured time = ? us;  2025-10-??
+			changeDebugPin1(false);		// measured time = 160 us, 11.4Hz;  2025-10-18
 
 
 		}
