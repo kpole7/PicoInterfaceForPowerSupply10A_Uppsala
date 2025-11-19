@@ -67,6 +67,9 @@ int main() {
 	startPeriodicInterrupt();
 
 	printf("Hello guys\n");
+	if (SIMULATE_HARDWARE_PSU == 1){
+		printf("simulation mode\n");
+	}
 
     while (true) {
         // main loop

@@ -15,7 +15,7 @@
 
 #define OFFSET_FOR_DEBUGGING		2048
 
-#define SIMULATE_HARDWARE_PSU		1
+#define SIMULATE_HARDWARE_PSU		0
 
 
 extern uint16_t DebugValueWrittenToPCFs, DebugValueWrittenToDac[NUMBER_OF_POWER_SUPPLIES];
