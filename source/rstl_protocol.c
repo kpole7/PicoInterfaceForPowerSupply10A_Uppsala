@@ -87,11 +87,11 @@ CommandErrors executeCommand(void){
 		ErrorCode = COMMAND_INCORRECT_FORMAT;
 	}
 
-	if (strstr(NewCommand, "PCX") == NewCommand){ // "Program current hexadecimal" command
+	if (strstr(NewCommand, "PCXI") == NewCommand){ // "Program current hexadecimal" command
 		unsigned DacValue;
-		int Result = sscanf( NewCommand, "PCX%X\r\n", &DacValue );
+		int Result = sscanf( NewCommand, "PCXI%X\r\n", &DacValue );
 		if ((Result != 1) || (NewCommand[CommadLength-2] != '\r') || (NewCommand[CommadLength-1] != '\n')){
-			ErrorCode = COMMAND_PCX_INCORRECT_FORMAT;
+			ErrorCode = COMMAND_PCXI_INCORRECT_FORMAT;
 		}
 		else{
 			if (atomic_load_explicit( &OrderCode, memory_order_acquire ) == ORDER_NONE){
@@ -103,19 +103,59 @@ CommandErrors executeCommand(void){
 					RequiredAmperesValue[TemporarySelectedChannel] -= (float)OFFSET_IN_DAC_UNITS;
 					RequiredAmperesValue[TemporarySelectedChannel] *= DAC_TO_AMPERES_COEFFICIENT;
 				}
-				atomic_store_explicit( &OrderCode, ORDER_COMMAND_PC, memory_order_release );
+				atomic_store_explicit( &OrderCode, ORDER_COMMAND_PCI, memory_order_release );
 				atomic_store_explicit( &OrderChannel, TemporarySelectedChannel, memory_order_release );
 				transmitViaSerialPort(">");
 			}
 			else{
-				ErrorCode = COMMAND_I2C_ERROR;
+				ErrorCode = COMMAND_OUT_OF_SERVICE;
 			}
 		}
-		printf( "cmd PCX\tE=%d\tch=%u\t%d\t0x%04X\n", ErrorCode,
+		printf( "cmd PCXI\tE=%d\tch=%u\t%d\t0x%04X\n", ErrorCode,
 				(unsigned)atomic_load_explicit(&UserSelectedChannel, memory_order_acquire)+1,
 				DacValue-OFFSET_IN_DAC_UNITS, DacValue );
 	}
-	else if (strstr(NewCommand, "PC") == NewCommand){ // "Program current" command
+	else if (strstr(NewCommand, "PCI") == NewCommand){ // "Program current" command
+		float CommandFloatingPointArgument = NAN;
+		int16_t ValueInDacUnits = 22222; // value in the case of failure (out of range)
+		int Result = sscanf( NewCommand, "PCI%f\r\n", &CommandFloatingPointArgument );
+		if ((Result != 1) || (NewCommand[CommadLength-2] != '\r') || (NewCommand[CommadLength-1] != '\n')){
+			ErrorCode = COMMAND_PCI_INCORRECT_FORMAT;
+		}
+		else{
+			if ((CommandFloatingPointArgument < -10.0) || (CommandFloatingPointArgument > 10.0)){
+				ErrorCode = COMMAND_PCI_INCORRECT_VALUE;
+			}
+			else{
+				if (atomic_load_explicit( &OrderCode, memory_order_acquire ) == ORDER_NONE){
+					// essential action
+					ValueInDacUnits = (int16_t)round(CommandFloatingPointArgument * AMPERES_TO_DAC_COEFFICIENT);
+					ValueInDacUnits += OFFSET_IN_DAC_UNITS;
+					if (ValueInDacUnits < 0){
+						ValueInDacUnits = 0;
+					}
+					if (FULL_SCALE_IN_DAC_UNITS < ValueInDacUnits){
+						ValueInDacUnits = FULL_SCALE_IN_DAC_UNITS;
+					}
+					int TemporarySelectedChannel = atomic_load_explicit(&UserSelectedChannel, memory_order_acquire);
+					if (TemporarySelectedChannel < NUMBER_OF_POWER_SUPPLIES){
+						UserSetpointDacValue[TemporarySelectedChannel] = (uint16_t)ValueInDacUnits;
+						RequiredAmperesValue[TemporarySelectedChannel] = CommandFloatingPointArgument;
+					}
+					atomic_store_explicit( &OrderCode, ORDER_COMMAND_PCI, memory_order_release );
+					atomic_store_explicit( &OrderChannel, TemporarySelectedChannel, memory_order_release );
+					transmitViaSerialPort(">");
+				}
+				else{
+					ErrorCode = COMMAND_OUT_OF_SERVICE;
+				}
+			}
+		}
+		printf( "cmd PCI\tE=%d\tch=%u\t%d\t0x%04X\n", ErrorCode,
+				(unsigned)atomic_load_explicit(&UserSelectedChannel, memory_order_acquire)+1,
+				ValueInDacUnits-OFFSET_IN_DAC_UNITS, ValueInDacUnits );
+	}
+	else if (strstr(NewCommand, "PC") == NewCommand){ // Program Current command
 		float CommandFloatingPointArgument = NAN;
 		int16_t ValueInDacUnits = 22222; // value in the case of failure (out of range)
 		int Result = sscanf( NewCommand, "PC%f\r\n", &CommandFloatingPointArgument );
@@ -147,17 +187,32 @@ CommandErrors executeCommand(void){
 					transmitViaSerialPort(">");
 				}
 				else{
-					ErrorCode = COMMAND_I2C_ERROR;
+					ErrorCode = COMMAND_OUT_OF_SERVICE;
 				}
 			}
 		}
-		printf( "cmd PC\tE=%d\tch=%u\t%d\t0x%04X\n", ErrorCode,
+		printf( "%12llu\tPC\t%u\tE=%d\t%d\t0x%04X\n", time_us_64(),
 				(unsigned)atomic_load_explicit(&UserSelectedChannel, memory_order_acquire)+1,
+				ErrorCode,
 				ValueInDacUnits-OFFSET_IN_DAC_UNITS, ValueInDacUnits );
+	}
+	else if (strstr(NewCommand, "?PCI") == NewCommand){ // "Get set-point value of current" command
+		if ((NewCommand[CommadLength-2] != '\r') || (NewCommand[CommadLength-1] != '\n')){
+			ErrorCode = COMMAND__PCI_INCORRECT_FORMAT;
+		}
+		else{
+			// essential action
+			snprintf( ResponseBuffer, COMMAND_BUFFER_LENGTH-1, "%.2f\r\n>",
+					RequiredAmperesValue[atomic_load_explicit(&UserSelectedChannel, memory_order_acquire)] );
+			transmitViaSerialPort( ResponseBuffer );
+		}
+		printf( "cmd ?PCI\tE=%d\tch=%u\t0x%04X\n", ErrorCode,
+				(unsigned)atomic_load_explicit(&UserSelectedChannel, memory_order_acquire)+1,
+				UserSetpointDacValue[atomic_load_explicit(&UserSelectedChannel, memory_order_acquire)] );
 	}
 	else if (strstr(NewCommand, "?PC") == NewCommand){ // "Get set-point value of current" command
 		if ((NewCommand[CommadLength-2] != '\r') || (NewCommand[CommadLength-1] != '\n')){
-			ErrorCode = COMMAND__PC_INCORRECT_FORMAT;
+			ErrorCode = COMMAND__PCI_INCORRECT_FORMAT;
 		}
 		else{
 			// essential action
@@ -168,47 +223,6 @@ CommandErrors executeCommand(void){
 		printf( "cmd ?PC\tE=%d\tch=%u\t0x%04X\n", ErrorCode,
 				(unsigned)atomic_load_explicit(&UserSelectedChannel, memory_order_acquire)+1,
 				UserSetpointDacValue[atomic_load_explicit(&UserSelectedChannel, memory_order_acquire)] );
-	}
-	else if (strstr(NewCommand, "USTAW") == NewCommand){ // "USTAW" command
-		float CommandFloatingPointArgument = NAN;
-		int16_t ValueInDacUnits = 22222; // value in the case of failure (out of range)
-		int Result = sscanf( NewCommand, "USTAW%f\r\n", &CommandFloatingPointArgument );
-		if ((Result != 1) || (NewCommand[CommadLength-2] != '\r') || (NewCommand[CommadLength-1] != '\n')){
-			ErrorCode = COMMAND_SET_INCORRECT_FORMAT;
-		}
-		else{
-			if ((CommandFloatingPointArgument < -10.0) || (CommandFloatingPointArgument > 10.0)){
-				ErrorCode = COMMAND_SET_INCORRECT_VALUE;
-			}
-			else{
-				if (atomic_load_explicit( &OrderCode, memory_order_acquire ) == ORDER_NONE){
-					// essential action
-					ValueInDacUnits = (int16_t)round(CommandFloatingPointArgument * AMPERES_TO_DAC_COEFFICIENT);
-					ValueInDacUnits += OFFSET_IN_DAC_UNITS;
-					if (ValueInDacUnits < 0){
-						ValueInDacUnits = 0;
-					}
-					if (FULL_SCALE_IN_DAC_UNITS < ValueInDacUnits){
-						ValueInDacUnits = FULL_SCALE_IN_DAC_UNITS;
-					}
-					int TemporarySelectedChannel = atomic_load_explicit(&UserSelectedChannel, memory_order_acquire);
-					if (TemporarySelectedChannel < NUMBER_OF_POWER_SUPPLIES){
-						UserSetpointDacValue[TemporarySelectedChannel] = (uint16_t)ValueInDacUnits;
-						RequiredAmperesValue[TemporarySelectedChannel] = CommandFloatingPointArgument;
-					}
-					atomic_store_explicit( &OrderCode, ORDER_COMMAND_SET, memory_order_release );
-					atomic_store_explicit( &OrderChannel, TemporarySelectedChannel, memory_order_release );
-					transmitViaSerialPort(">");
-				}
-				else{
-					ErrorCode = COMMAND_I2C_ERROR;
-				}
-			}
-		}
-		printf( "%12llu\tUSTAW\t%u\tE=%d\t%d\t0x%04X\n", time_us_64(),
-				(unsigned)atomic_load_explicit(&UserSelectedChannel, memory_order_acquire)+1,
-				ErrorCode,
-				ValueInDacUnits-OFFSET_IN_DAC_UNITS, ValueInDacUnits );
 	}
 	else if (strstr(NewCommand, "Z") == NewCommand){ // "Select channel" command
 		unsigned TemporaryChannel;
@@ -326,16 +340,16 @@ CommandErrors executeCommand(void){
 		printf( "cmd MY\tE=%d\tch=%u\tSig2=%c\n", ErrorCode,
 				(unsigned)atomic_load_explicit(&UserSelectedChannel, memory_order_acquire)+1, Sig2Value? '1':'0' );
 	}
-	else if (strstr(NewCommand, "WERSJA") == NewCommand){ // "Get info about the current version" command
+	else if (strstr(NewCommand, "VERSION") == NewCommand){ // "Get info about the current version" command
 		if ((NewCommand[CommadLength-2] != '\r') || (NewCommand[CommadLength-1] != '\n')){
 			ErrorCode = COMMAND_VERSION_INCORRECT_FORMAT;
 		}
 		else{
 			// essential action
-			snprintf( ResponseBuffer, COMMAND_BUFFER_LENGTH-1, "wersja %s\r\n>", CompilationTime );
+			snprintf( ResponseBuffer, COMMAND_BUFFER_LENGTH-1, "ver. %s\r\n>", CompilationTime );
 			transmitViaSerialPort( ResponseBuffer );
 		}
-		printf( "cmd wer\tE=%d\tch=%u\twersja %s\n", ErrorCode,
+		printf( "cmd wer\tE=%d\tch=%u\tver. %s\n", ErrorCode,
 				(unsigned)atomic_load_explicit(&UserSelectedChannel, memory_order_acquire)+1,
 				CompilationTime );
 	}

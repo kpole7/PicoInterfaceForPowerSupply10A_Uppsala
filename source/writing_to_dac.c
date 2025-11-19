@@ -229,15 +229,17 @@ void writeToDacStateMachine(void){
 
 			changeDebugPin1(true);
 			uint32_t DacAddress = decodeDataSentToPcf8574s( &DebugValueWrittenToDac[0], DebugValueWrittenToPCFs );
-			printf( "%12llu\ti2c\t%d\t%d\t%d\t%d\n",
+			printf( "%12llu\ti2c\t%d\t%d",
 					time_us_64(),
 					WritingToDac_Channel,
-					InstantaneousSetpointDacValue[WritingToDac_Channel]-OFFSET_FOR_DEBUGGING,
-					DacAddress,
-					DebugValueWrittenToDac[DacAddress]-OFFSET_FOR_DEBUGGING );
-			changeDebugPin1(false);		// measured time = 160 us, 11.4Hz;  2025-10-18
-
-
+					InstantaneousSetpointDacValue[WritingToDac_Channel]-OFFSET_FOR_DEBUGGING );
+			if ((WritingToDac_Channel != DacAddress) ||
+					(InstantaneousSetpointDacValue[WritingToDac_Channel] != DebugValueWrittenToDac[DacAddress]))
+			{
+				printf( "\tINCONSISTENCY!!!" );
+			}
+			printf( "\n" );
+			changeDebugPin1(false);		// measured time = 160 us  (2025-10-19); pulse frequency in the case of ramp execution: 11.4Hz
 		}
 		WritingToDac_State = WRITING_TO_DAC_INITIALIZE;
 		break;

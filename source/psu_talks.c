@@ -101,13 +101,13 @@ void ordersForDacsAndRampsGeneration( uint32_t Channel ){
 		assert( TemporaryUserSelectedChannel < NUMBER_OF_POWER_SUPPLIES );
 		// There is a new order for the TemporarySelectedChannel
 
-		if (ORDER_COMMAND_PC == TemporaryOrderCode){
+		if (ORDER_COMMAND_PCI == TemporaryOrderCode){
 			InstantaneousSetpointDacValue[TemporaryUserSelectedChannel] = UserSetpointDacValue[TemporaryUserSelectedChannel];
 			WritingToDac_IsValidData[TemporaryUserSelectedChannel] = true;
 			WritingToDac_RampDelay[Channel] = 0;
 		}
 
-		if (ORDER_COMMAND_SET == TemporaryOrderCode){
+		if (ORDER_COMMAND_PC == TemporaryOrderCode){
 			InstantaneousSetpointDacValue[TemporaryUserSelectedChannel] =
 					calculateRampStep( UserSetpointDacValue[TemporaryUserSelectedChannel], WrittenToDacValue[TemporaryUserSelectedChannel] );
 			WritingToDac_IsValidData[TemporaryUserSelectedChannel] = true;
