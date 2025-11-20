@@ -56,6 +56,10 @@ static float RequiredAmperesValue[NUMBER_OF_POWER_SUPPLIES];
 
 static int32_t parseFloatArgument( float *Result, char *TextPtr, char EndMark );
 
+static int32_t parseOneDigitArgument( uint8_t *Result, char *TextPtr, char EndMark );
+
+static int32_t parseHexadecimal3DigitsArgument( uint16_t *Result, char *TextPtr, char EndMark );
+
 //---------------------------------------------------------------------------------------------------
 // Function definitions
 //---------------------------------------------------------------------------------------------------
@@ -99,9 +103,9 @@ CommandErrors executeCommand(void){
 	}
 
 	if (strstr(NewCommand, "PCXI") == NewCommand){ // "Program current hexadecimal" command
-		unsigned DacValue;
-		int Result = sscanf( NewCommand, "PCXI%X\r\n", &DacValue );
-		if ((Result != 1) || (NewCommand[CommadLength-2] != '\r') || (NewCommand[CommadLength-1] != '\n')){
+		uint16_t DacValue;
+		ParsingResult = parseHexadecimal3DigitsArgument( &DacValue, NewCommand+4, '\r' );
+		if ((ParsingResult < 0) || (CommadLength != 4+ParsingResult+2 ) || (NewCommand[CommadLength-2] != '\r') || (NewCommand[CommadLength-1] != '\n')){
 			ErrorCode = COMMAND_PCXI_INCORRECT_FORMAT;
 		}
 		else{
@@ -109,7 +113,7 @@ CommandErrors executeCommand(void){
 				// essential action
 				int TemporarySelectedChannel = atomic_load_explicit(&UserSelectedChannel, memory_order_acquire);
 				if (TemporarySelectedChannel < NUMBER_OF_POWER_SUPPLIES){
-					UserSetpointDacValue[TemporarySelectedChannel] = (uint16_t)DacValue;
+					UserSetpointDacValue[TemporarySelectedChannel] = DacValue;
 					RequiredAmperesValue[TemporarySelectedChannel] = (float)DacValue;
 					RequiredAmperesValue[TemporarySelectedChannel] -= (float)OFFSET_IN_DAC_UNITS;
 					RequiredAmperesValue[TemporarySelectedChannel] *= DAC_TO_AMPERES_COEFFICIENT;
@@ -122,9 +126,11 @@ CommandErrors executeCommand(void){
 				ErrorCode = COMMAND_OUT_OF_SERVICE;
 			}
 		}
-		printf( "cmd PCXI\tE=%d\tch=%u\t%d\t0x%04X\n", ErrorCode,
+		printf( "cmd PCXI\tE=%d\tch=%u\t%d\t0x%04X\n",
+				ErrorCode,
 				(unsigned)atomic_load_explicit(&UserSelectedChannel, memory_order_acquire)+1,
-				DacValue-OFFSET_IN_DAC_UNITS, DacValue );
+				(unsigned)(DacValue-OFFSET_IN_DAC_UNITS),
+				(unsigned)DacValue );
 	}
 	else if (strstr(NewCommand, "PCI") == NewCommand){ // "Program current" command
 		float CommandFloatingPointArgument = 22222.2;
@@ -243,9 +249,9 @@ CommandErrors executeCommand(void){
 				UserSetpointDacValue[atomic_load_explicit(&UserSelectedChannel, memory_order_acquire)] );
 	}
 	else if (strstr(NewCommand, "Z") == NewCommand){ // "Select channel" command
-		unsigned TemporaryChannel;
-		int Result = sscanf( NewCommand, "Z%u\r\n", &TemporaryChannel );
-		if ((Result != 1) || (NewCommand[CommadLength-2] != '\r') || (NewCommand[CommadLength-1] != '\n')){
+		uint8_t TemporaryChannel;
+		ParsingResult = parseOneDigitArgument( &TemporaryChannel, NewCommand+1, '\r' );
+		if ((ParsingResult < 0) || (CommadLength != 1+ParsingResult+2 ) || (NewCommand[CommadLength-2] != '\r') || (NewCommand[CommadLength-1] != '\n')){
 			ErrorCode = COMMAND_Z_INCORRECT_FORMAT;
 		}
 		else{
@@ -275,9 +281,9 @@ CommandErrors executeCommand(void){
 				(unsigned)atomic_load_explicit(&UserSelectedChannel, memory_order_acquire)+1 );
 	}
 	else if (strstr(NewCommand, "POWER") == NewCommand){ // "Switch power on/off" command
-		unsigned TemporaryPowerArgument;
-		int Result = sscanf( NewCommand, "POWER%u\r\n", &TemporaryPowerArgument );
-		if ((Result != 1) || (NewCommand[CommadLength-2] != '\r') || (NewCommand[CommadLength-1] != '\n')){
+		uint8_t TemporaryPowerArgument;
+		ParsingResult = parseOneDigitArgument( &TemporaryPowerArgument, NewCommand+5, '\r' );
+		if ((ParsingResult < 0) || (CommadLength != 5+ParsingResult+2 ) || (NewCommand[CommadLength-2] != '\r') || (NewCommand[CommadLength-1] != '\n')){
 			ErrorCode = COMMAND_POWER_INCORRECT_FORMAT;
 		}
 		else{
@@ -452,6 +458,92 @@ static int32_t parseFloatArgument( float *Result, char *TextPtr, char EndMark ){
 		else if (('0' <= TextPtr[CharacterIndex]) && ('9' >= TextPtr[CharacterIndex])){
 			DecimalDigits++;
 			if (DecimalDigits > COMMAND_FLOATING_POINT_DIGITS_LIMIT){
+				// too many digits
+				return -3;
+			}
+		}
+		else{
+			// improper character
+			return -2;
+		}
+		CharacterIndex++;
+	}
+	// improper length
+	return -1;
+}
+
+static int32_t parseOneDigitArgument( uint8_t *Result, char *TextPtr, char EndMark ){
+	uint8_t UInt8_Argument = 0;
+	uint8_t CharacterIndex = 0;
+	uint8_t Spaces = 0;
+	uint8_t DecimalDigits = 0;
+
+	while( CharacterIndex < 3 ){
+		if (EndMark == TextPtr[CharacterIndex]){
+			if (0 == DecimalDigits){
+				// no digit
+				return -5;
+			}
+			*Result = UInt8_Argument;
+			return CharacterIndex;
+		}
+		else if (' ' == TextPtr[CharacterIndex]){
+			Spaces++;
+			if (Spaces > 1){
+				// too many spaces
+				return -4;
+			}
+		}
+		else if (('0' <= TextPtr[CharacterIndex]) && ('9' >= TextPtr[CharacterIndex])){
+			DecimalDigits++;
+			if (DecimalDigits > 1){
+				// too many digits
+				return -3;
+			}
+			UInt8_Argument = (uint8_t)(TextPtr[CharacterIndex] - '0');
+		}
+		else{
+			// improper character
+			return -2;
+		}
+		CharacterIndex++;
+	}
+	// improper length
+	return -1;
+}
+
+static int32_t parseHexadecimal3DigitsArgument( uint16_t *Result, char *TextPtr, char EndMark ){
+	uint16_t UInt16_Argument;
+	uint8_t CharacterIndex = 0;
+	uint8_t Spaces = 0;
+	uint8_t DecimalDigits = 0;
+
+	while( CharacterIndex < COMMAND_FLOATING_POINT_MAX_LENGTH ){
+		if (EndMark == TextPtr[CharacterIndex]){
+			if (0 == DecimalDigits){
+				// no digit
+				return -6;
+			}
+			UInt16_Argument = strtoul( &TextPtr[Spaces], NULL, 16 );
+			*Result = UInt16_Argument;
+			return CharacterIndex;
+		}
+		else if (' ' == TextPtr[CharacterIndex]){
+			Spaces++;
+			if (Spaces > 1){
+				// too many spaces
+				return -5;
+			}
+			if (DecimalDigits != 0){
+				// improper position of space
+				return -4;
+			}
+		}
+		else if ((('0' <= TextPtr[CharacterIndex]) && ('9' >= TextPtr[CharacterIndex])) ||
+				(('A' <= TextPtr[CharacterIndex]) && ('F' >= TextPtr[CharacterIndex])))
+		{
+			DecimalDigits++;
+			if (DecimalDigits > 3){
 				// too many digits
 				return -3;
 			}
