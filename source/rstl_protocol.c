@@ -1,6 +1,7 @@
 /// @file rstl_protocol.c
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <math.h>
 #include "pico/stdlib.h"
@@ -15,7 +16,10 @@
 // Macro directives
 //---------------------------------------------------------------------------------------------------
 
-#define COMMAND_MINIMAL_LENGTH			3
+#define COMMAND_MINIMAL_LENGTH				3
+#define COMMAND_FLOATING_POINT_MAX_LENGTH	9	// " -9.12345"
+#define COMMAND_FLOATING_POINT_DIGITS_LIMIT	6
+#define COMMAND_FLOATING_POINT_VALUE_LIMIT	10.0
 
 //---------------------------------------------------------------------------------------------------
 // Global variables
@@ -45,6 +49,12 @@ atomic_int OrderChannel;
 static bool IsMainContactorStateOn;
 
 static float RequiredAmperesValue[NUMBER_OF_POWER_SUPPLIES];
+
+//---------------------------------------------------------------------------------------------------
+// Function prototypes
+//---------------------------------------------------------------------------------------------------
+
+static int32_t parseFloatArgument( float *Result, char *TextPtr, char EndMark );
 
 //---------------------------------------------------------------------------------------------------
 // Function definitions
@@ -81,6 +91,7 @@ void driveUserInterface(void){
 CommandErrors executeCommand(void){
 	char ResponseBuffer[LONGEST_RESPONSE_LENGTH];
 	CommandErrors ErrorCode = COMMAND_GOOD;
+	int32_t ParsingResult = 0;
 	int CommadLength = strlen( NewCommand );
 
 	if (CommadLength < 3){
@@ -116,14 +127,19 @@ CommandErrors executeCommand(void){
 				DacValue-OFFSET_IN_DAC_UNITS, DacValue );
 	}
 	else if (strstr(NewCommand, "PCI") == NewCommand){ // "Program current" command
-		float CommandFloatingPointArgument = NAN;
+		float CommandFloatingPointArgument = 22222.2;
 		int16_t ValueInDacUnits = 22222; // value in the case of failure (out of range)
-		int Result = sscanf( NewCommand, "PCI%f\r\n", &CommandFloatingPointArgument );
-		if ((Result != 1) || (NewCommand[CommadLength-2] != '\r') || (NewCommand[CommadLength-1] != '\n')){
+		ParsingResult = parseFloatArgument( &CommandFloatingPointArgument, NewCommand+3, '\r' );
+
+#if 0
+		printf( "Parsing res=%d, arg=%f\n", ParsingResult, CommandFloatingPointArgument );
+#endif
+
+		if ((ParsingResult < 0) || (CommadLength != 3+ParsingResult+2 ) || (NewCommand[CommadLength-2] != '\r') || (NewCommand[CommadLength-1] != '\n')){
 			ErrorCode = COMMAND_PCI_INCORRECT_FORMAT;
 		}
 		else{
-			if ((CommandFloatingPointArgument < -10.0) || (CommandFloatingPointArgument > 10.0)){
+			if ((CommandFloatingPointArgument < -COMMAND_FLOATING_POINT_VALUE_LIMIT) || (CommandFloatingPointArgument > COMMAND_FLOATING_POINT_VALUE_LIMIT)){
 				ErrorCode = COMMAND_PCI_INCORRECT_VALUE;
 			}
 			else{
@@ -151,19 +167,20 @@ CommandErrors executeCommand(void){
 				}
 			}
 		}
-		printf( "cmd PCI\tE=%d\tch=%u\t%d\t0x%04X\n", ErrorCode,
+		printf( "cmd PCI\tE=%d\tch=%u\t%d\t0x%04X\n",
+				ErrorCode,
 				(unsigned)atomic_load_explicit(&UserSelectedChannel, memory_order_acquire)+1,
 				ValueInDacUnits-OFFSET_IN_DAC_UNITS, ValueInDacUnits );
 	}
 	else if (strstr(NewCommand, "PC") == NewCommand){ // Program Current command
-		float CommandFloatingPointArgument = NAN;
+		float CommandFloatingPointArgument = 22222.2;
 		int16_t ValueInDacUnits = 22222; // value in the case of failure (out of range)
-		int Result = sscanf( NewCommand, "PC%f\r\n", &CommandFloatingPointArgument );
-		if ((Result != 1) || (NewCommand[CommadLength-2] != '\r') || (NewCommand[CommadLength-1] != '\n')){
+		ParsingResult = parseFloatArgument( &CommandFloatingPointArgument, NewCommand+3, '\r' );
+		if ((ParsingResult < 0) || (CommadLength != 3+ParsingResult+2 ) || (NewCommand[CommadLength-2] != '\r') || (NewCommand[CommadLength-1] != '\n')){
 			ErrorCode = COMMAND_PC_INCORRECT_FORMAT;
 		}
 		else{
-			if ((CommandFloatingPointArgument < -10.0) || (CommandFloatingPointArgument > 10.0)){
+			if ((CommandFloatingPointArgument < -COMMAND_FLOATING_POINT_VALUE_LIMIT) || (CommandFloatingPointArgument > COMMAND_FLOATING_POINT_VALUE_LIMIT)){
 				ErrorCode = COMMAND_PC_INCORRECT_VALUE;
 			}
 			else{
@@ -191,7 +208,8 @@ CommandErrors executeCommand(void){
 				}
 			}
 		}
-		printf( "%12llu\tPC\t%u\tE=%d\t%d\t0x%04X\n", time_us_64(),
+		printf( "%12llu\tPC\t%u\tE=%d\t%d\t0x%04X\n",
+				time_us_64(),
 				(unsigned)atomic_load_explicit(&UserSelectedChannel, memory_order_acquire)+1,
 				ErrorCode,
 				ValueInDacUnits-OFFSET_IN_DAC_UNITS, ValueInDacUnits );
@@ -361,6 +379,89 @@ CommandErrors executeCommand(void){
 		}
 		printf( "\n" );
 	}
+	if (COMMAND_GOOD != ErrorCode){
+		snprintf( ResponseBuffer, COMMAND_BUFFER_LENGTH-1, "Error %d\r\n>", ErrorCode );
+		transmitViaSerialPort( ResponseBuffer );
+	}
 	return ErrorCode;
 }
 
+static int32_t parseFloatArgument( float *Result, char *TextPtr, char EndMark ){
+	float FloatArgument;
+	uint8_t CharacterIndex = 0;
+	uint8_t Spaces = 0;
+	uint8_t Pluses = 0;
+	uint8_t Minuses = 0;
+	uint8_t Points = 0;
+	uint8_t DecimalDigits = 0;
+
+	while( CharacterIndex < COMMAND_FLOATING_POINT_MAX_LENGTH ){
+		if (EndMark == TextPtr[CharacterIndex]){
+			if (0 == DecimalDigits){
+				// no digit
+				return -12;
+			}
+			FloatArgument = atof( &TextPtr[Spaces] );
+			*Result = FloatArgument;
+			return CharacterIndex;
+		}
+		else if (' ' == TextPtr[CharacterIndex]){
+			Spaces++;
+			if (Spaces > 1){
+				// too many spaces
+				return -11;
+			}
+			if ((Pluses != 0) || (Minuses != 0) || (DecimalDigits != 0)){
+				// improper position of space
+				return -10;
+			}
+		}
+		else if ('+' == TextPtr[CharacterIndex]){
+			Pluses++;
+			if (Pluses > 1){
+				// too many pluses
+				return -9;
+			}
+			if ((Minuses != 0) || (DecimalDigits != 0)){
+				// improper position of plus
+				return -8;
+			}
+		}
+		else if ('-' == TextPtr[CharacterIndex]){
+			Minuses++;
+			if (Minuses > 1){
+				// too many minuses
+				return -7;
+			}
+			if ((Pluses != 0) || (DecimalDigits != 0)){
+				// improper position of minus
+				return -6;
+			}
+		}
+		else if ('.' == TextPtr[CharacterIndex]){
+			Points++;
+			if (Points > 1){
+				// too many points
+				return -5;
+			}
+			if (0 == DecimalDigits){
+				// improper position of point
+				return -4;
+			}
+		}
+		else if (('0' <= TextPtr[CharacterIndex]) && ('9' >= TextPtr[CharacterIndex])){
+			DecimalDigits++;
+			if (DecimalDigits > COMMAND_FLOATING_POINT_DIGITS_LIMIT){
+				// too many digits
+				return -3;
+			}
+		}
+		else{
+			// improper character
+			return -2;
+		}
+		CharacterIndex++;
+	}
+	// improper length
+	return -1;
+}

@@ -56,4 +56,15 @@ pico_enable_stdio_uart(power_source_10A_Uppsala 0)
 # create map/bin/hex/uf2 file etc.
 pico_add_extra_outputs(power_source_10A_Uppsala)
 
+set(OUTPUT_DIR "${PROJECT_SOURCE_DIR}/bin")
+add_custom_command(
+    TARGET power_source_10A_Uppsala
+    POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E make_directory "${OUTPUT_DIR}"
+    COMMAND ${CMAKE_COMMAND} -E copy
+        "$<TARGET_FILE_DIR:power_source_10A_Uppsala>/power_source_10A_Uppsala.uf2"
+        "${OUTPUT_DIR}/power_source_10A_Uppsala.uf2"
+    COMMAND date "+%Y-%m-%d %H:%M:%S" > "${OUTPUT_DIR}/timestamp.txt"
+    COMMENT "Copying UF2 and writing compilation timestamp"
+)
 
