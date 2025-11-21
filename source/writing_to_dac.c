@@ -163,7 +163,7 @@ void writeToDacStateMachine(void){
 	case WRITING_TO_DAC_INITIALIZE:
 		gpio_put( GPIO_FOR_NOT_WR_OUTPUT, true );
 
-		ordersForDacsAndRampsGeneration( WritingToDac_Channel );
+		psuStateMachine( WritingToDac_Channel );
 
 		WritingToDac_Channel++;
 		if (NUMBER_OF_POWER_SUPPLIES == WritingToDac_Channel){
@@ -232,7 +232,7 @@ void writeToDacStateMachine(void){
 			printf( "%12llu\ti2c\t%d\t%d",
 					time_us_64(),
 					WritingToDac_Channel,
-					InstantaneousSetpointDacValue[WritingToDac_Channel]-OFFSET_FOR_DEBUGGING );
+					InstantaneousSetpointDacValue[WritingToDac_Channel]-OFFSET_IN_DAC_UNITS );
 			if ((WritingToDac_Channel != DacAddress) ||
 					(InstantaneousSetpointDacValue[WritingToDac_Channel] != DebugValueWrittenToDac[DacAddress]))
 			{

@@ -33,8 +33,27 @@
 #define RAMP_DELAY						8 // 202
 
 //---------------------------------------------------------------------------------------------------
+// Local constants
+//---------------------------------------------------------------------------------------------------
+
+/// This definition contains a list of states of a finite state machine that represents entire multichannel power supply.
+/// The state machine supports all operating modes of the equipment.
+typedef enum {
+	PSU_STOPPED,
+	PSU_INITIAL_TEST_SIG2_LOW,
+	PSU_INITIAL_TEST_SIG2_HIGH,
+	PSU_INITIAL_ZEROING,
+	PSU_INITIAL_CONTACTOR_ON,
+	PSU_RUNNING,
+	PSU_SHUTTING_DOWN_ZEROING,
+	PSU_SHUTTING_DOWN_CONTACTOR_OFF,
+}PsuOperatingStates;
+
+//---------------------------------------------------------------------------------------------------
 // Global variables
 //---------------------------------------------------------------------------------------------------
+
+atomic_int PsuState;
 
 /// @brief User's set-point value for the DAC (number from 0 to 0xFFF)
 volatile uint16_t UserSetpointDacValue[NUMBER_OF_POWER_SUPPLIES];
@@ -47,6 +66,13 @@ volatile uint16_t WrittenToDacValue[NUMBER_OF_POWER_SUPPLIES];
 
 /// @brief This variable is used in a simple state machine
 volatile bool WritingToDac_IsValidData[NUMBER_OF_POWER_SUPPLIES];
+
+/// @brief The state of the power contactor: true=power on; false=power off
+bool IsMainContactorStateOn;
+
+//---------------------------------------------------------------------------------------------------
+// Local variables
+//---------------------------------------------------------------------------------------------------
 
 static uint32_t WritingToDac_RampDelay[NUMBER_OF_POWER_SUPPLIES];
 
@@ -69,6 +95,9 @@ static uint16_t calculateRampStep( uint16_t TargetValue, uint16_t PresentValue )
 
 /// @brief This function initializes the module variables and peripherals.
 void initializePsuTalks(void){
+	atomic_store_explicit( &PsuState, PSU_STOPPED, memory_order_release );
+	IsMainContactorStateOn = INITIAL_MAIN_CONTACTOR_STATE;
+
 	initializeWritingToDacs();
 
     gpio_init(GPIO_FOR_POWER_CONTACTOR);
@@ -91,7 +120,7 @@ bool getLogicFeedbackFromPsu( void ){
 #if SIMULATE_HARDWARE_PSU == 1
 	int TemporaryChannel = atomic_load_explicit(&UserSelectedChannel, memory_order_acquire);
 	assert(TemporaryChannel < NUMBER_OF_POWER_SUPPLIES);
-	bool Result = (WrittenToDacValue[TemporaryChannel] >= OFFSET_FOR_DEBUGGING);
+	bool Result = (WrittenToDacValue[TemporaryChannel] >= OFFSET_IN_DAC_UNITS);
 	return Result;
 
 #else
@@ -100,7 +129,7 @@ bool getLogicFeedbackFromPsu( void ){
 
 }
 
-void ordersForDacsAndRampsGeneration( uint32_t Channel ){
+void psuStateMachine( uint32_t Channel ){
 	int TemporaryUserSelectedChannel = -1;
 	int TemporaryOrderCode = atomic_load_explicit( &OrderCode, memory_order_acquire );
 	assert( TemporaryOrderCode < ORDER_COMMAND_ILLEGAL_CODE );

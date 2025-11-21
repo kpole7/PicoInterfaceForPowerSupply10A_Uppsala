@@ -21,14 +21,12 @@
 #define ORDER_ACCEPTED					1
 #define ORDER_COMMAND_PCI				2	// Program Current Immediately
 #define ORDER_COMMAND_PC				3	// Program Current (following ramp)
-#define ORDER_COMMAND_POWER_ON			4
-#define ORDER_COMMAND_ILLEGAL_CODE		5
-
-#define INITIAL_DAC_VALUE				0x800
+#define ORDER_COMMAND_POWER_UP			4
+#define ORDER_COMMAND_POWER_DOWN		5
+#define ORDER_COMMAND_ILLEGAL_CODE		6
 
 #define AMPERES_TO_DAC_COEFFICIENT		(4096.0 / 20.0)
 #define DAC_TO_AMPERES_COEFFICIENT		(20.0 / 4096.0)
-#define OFFSET_IN_DAC_UNITS				2048
 #define FULL_SCALE_IN_DAC_UNITS			4095	// 4095 = 0xFFF
 
 //---------------------------------------------------------------------------------------------------

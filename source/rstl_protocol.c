@@ -45,9 +45,6 @@ atomic_int OrderChannel;
 // Local variables
 //---------------------------------------------------------------------------------------------------
 
-/// @brief The state of the power contactor: true=power on; false=power off
-static bool IsMainContactorStateOn;
-
 static float RequiredAmperesValue[NUMBER_OF_POWER_SUPPLIES];
 
 //---------------------------------------------------------------------------------------------------
@@ -64,18 +61,16 @@ static int32_t parseHexadecimal3DigitsArgument( uint16_t *Result, char *TextPtr,
 // Function definitions
 //---------------------------------------------------------------------------------------------------
 
-/// @brief This function initializes GPIO controlling the the power contactor and initializes variables of this module
+/// @brief This function initializes variables of this module
 void initializeRstlProtocol(void){
 	atomic_store_explicit( &UserSelectedChannel, 0, memory_order_release );
 	for (uint8_t J = 0; J < NUMBER_OF_POWER_SUPPLIES; J++){
-		UserSetpointDacValue[J] = INITIAL_DAC_VALUE;
-		WrittenToDacValue[J] = INITIAL_DAC_VALUE;
+		UserSetpointDacValue[J] = OFFSET_IN_DAC_UNITS;
+		WrittenToDacValue[J] = OFFSET_IN_DAC_UNITS;
 		RequiredAmperesValue[J] = 0.0;
 	}
 	atomic_store_explicit( &OrderCode, ORDER_NONE, memory_order_release );
 	atomic_store_explicit( &OrderChannel, 0, memory_order_release );
-
-	IsMainContactorStateOn = INITIAL_MAIN_CONTACTOR_STATE;
 }
 
 /// @brief This function is called in the main loop
@@ -105,7 +100,9 @@ CommandErrors executeCommand(void){
 	if (strstr(NewCommand, "PCXI") == NewCommand){ // "Program current hexadecimal" command
 		uint16_t DacValue;
 		ParsingResult = parseHexadecimal3DigitsArgument( &DacValue, NewCommand+4, '\r' );
-		if ((ParsingResult < 0) || (CommadLength != 4+ParsingResult+2 ) || (NewCommand[CommadLength-2] != '\r') || (NewCommand[CommadLength-1] != '\n')){
+		if ((ParsingResult < 0) || (CommadLength != 4+ParsingResult+2 ) ||
+				(NewCommand[CommadLength-2] != '\r') || (NewCommand[CommadLength-1] != '\n'))
+		{
 			ErrorCode = COMMAND_PCXI_INCORRECT_FORMAT;
 		}
 		else{
@@ -141,11 +138,15 @@ CommandErrors executeCommand(void){
 		printf( "Parsing res=%d, arg=%f\n", ParsingResult, CommandFloatingPointArgument );
 #endif
 
-		if ((ParsingResult < 0) || (CommadLength != 3+ParsingResult+2 ) || (NewCommand[CommadLength-2] != '\r') || (NewCommand[CommadLength-1] != '\n')){
+		if ((ParsingResult < 0) || (CommadLength != 3+ParsingResult+2 ) ||
+				(NewCommand[CommadLength-2] != '\r') || (NewCommand[CommadLength-1] != '\n'))
+		{
 			ErrorCode = COMMAND_PCI_INCORRECT_FORMAT;
 		}
 		else{
-			if ((CommandFloatingPointArgument < -COMMAND_FLOATING_POINT_VALUE_LIMIT) || (CommandFloatingPointArgument > COMMAND_FLOATING_POINT_VALUE_LIMIT)){
+			if ((CommandFloatingPointArgument < -COMMAND_FLOATING_POINT_VALUE_LIMIT) ||
+					(CommandFloatingPointArgument > COMMAND_FLOATING_POINT_VALUE_LIMIT))
+			{
 				ErrorCode = COMMAND_PCI_INCORRECT_VALUE;
 			}
 			else{
@@ -182,11 +183,15 @@ CommandErrors executeCommand(void){
 		float CommandFloatingPointArgument = 22222.2;
 		int16_t ValueInDacUnits = 22222; // value in the case of failure (out of range)
 		ParsingResult = parseFloatArgument( &CommandFloatingPointArgument, NewCommand+3, '\r' );
-		if ((ParsingResult < 0) || (CommadLength != 3+ParsingResult+2 ) || (NewCommand[CommadLength-2] != '\r') || (NewCommand[CommadLength-1] != '\n')){
+		if ((ParsingResult < 0) || (CommadLength != 3+ParsingResult+2 ) ||
+				(NewCommand[CommadLength-2] != '\r') || (NewCommand[CommadLength-1] != '\n'))
+		{
 			ErrorCode = COMMAND_PC_INCORRECT_FORMAT;
 		}
 		else{
-			if ((CommandFloatingPointArgument < -COMMAND_FLOATING_POINT_VALUE_LIMIT) || (CommandFloatingPointArgument > COMMAND_FLOATING_POINT_VALUE_LIMIT)){
+			if ((CommandFloatingPointArgument < -COMMAND_FLOATING_POINT_VALUE_LIMIT) ||
+					(CommandFloatingPointArgument > COMMAND_FLOATING_POINT_VALUE_LIMIT))
+			{
 				ErrorCode = COMMAND_PC_INCORRECT_VALUE;
 			}
 			else{
@@ -251,7 +256,9 @@ CommandErrors executeCommand(void){
 	else if (strstr(NewCommand, "Z") == NewCommand){ // "Select channel" command
 		uint8_t TemporaryChannel;
 		ParsingResult = parseOneDigitArgument( &TemporaryChannel, NewCommand+1, '\r' );
-		if ((ParsingResult < 0) || (CommadLength != 1+ParsingResult+2 ) || (NewCommand[CommadLength-2] != '\r') || (NewCommand[CommadLength-1] != '\n')){
+		if ((ParsingResult < 0) || (CommadLength != 1+ParsingResult+2 ) ||
+				(NewCommand[CommadLength-2] != '\r') || (NewCommand[CommadLength-1] != '\n'))
+		{
 			ErrorCode = COMMAND_Z_INCORRECT_FORMAT;
 		}
 		else{
@@ -280,10 +287,12 @@ CommandErrors executeCommand(void){
 		printf( "cmd ?Z\tE=%d\tch=%u\n", ErrorCode,
 				(unsigned)atomic_load_explicit(&UserSelectedChannel, memory_order_acquire)+1 );
 	}
-	else if (strstr(NewCommand, "POWER") == NewCommand){ // "Switch power on/off" command
+	else if (strstr(NewCommand, "PWR") == NewCommand){ // "Switch power on/off" command
 		uint8_t TemporaryPowerArgument;
 		ParsingResult = parseOneDigitArgument( &TemporaryPowerArgument, NewCommand+5, '\r' );
-		if ((ParsingResult < 0) || (CommadLength != 5+ParsingResult+2 ) || (NewCommand[CommadLength-2] != '\r') || (NewCommand[CommadLength-1] != '\n')){
+		if ((ParsingResult < 0) || (CommadLength != 5+ParsingResult+2 ) ||
+				(NewCommand[CommadLength-2] != '\r') || (NewCommand[CommadLength-1] != '\n'))
+		{
 			ErrorCode = COMMAND_POWER_INCORRECT_FORMAT;
 		}
 		else{
@@ -311,7 +320,7 @@ CommandErrors executeCommand(void){
 					(unsigned)atomic_load_explicit(&UserSelectedChannel, memory_order_acquire)+1 );
 		}
 	}
-	else if (strstr(NewCommand, "?POWER") == NewCommand){ // "Get state of power switch" command
+	else if (strstr(NewCommand, "?PWR") == NewCommand){ // "Get state of power switch" command
 		if ((NewCommand[CommadLength-2] != '\r') || (NewCommand[CommadLength-1] != '\n')){
 			ErrorCode = COMMAND__POWER_INCORRECT_FORMAT;
 		}

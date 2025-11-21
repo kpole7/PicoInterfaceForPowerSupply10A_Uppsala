@@ -10,7 +10,8 @@
 
 #define SIMULATE_HARDWARE_PSU			1
 
-#define OFFSET_FOR_DEBUGGING			2048
+// This is a digital value for DAC corresponding to analog zero current
+#define OFFSET_IN_DAC_UNITS				2048
 
 #define NUMBER_OF_POWER_SUPPLIES		4
 

@@ -20,6 +20,8 @@
 // Global variables
 //---------------------------------------------------------------------------------------------------
 
+extern atomic_int PsuState;
+
 /// @brief Setpoint value for a DAC
 extern volatile uint16_t UserSetpointDacValue[NUMBER_OF_POWER_SUPPLIES];
 
@@ -31,6 +33,9 @@ extern volatile uint16_t WrittenToDacValue[NUMBER_OF_POWER_SUPPLIES];
 
 /// @brief This variable is used in a simple state machine
 extern volatile bool WritingToDac_IsValidData[NUMBER_OF_POWER_SUPPLIES];
+
+/// @brief The state of the power contactor: true=power on; false=power off
+extern bool IsMainContactorStateOn;
 
 //---------------------------------------------------------------------------------------------------
 // Function prototypes
@@ -47,6 +52,6 @@ bool getLogicFeedbackFromPsu( void );
 
 /// @brief This function supervises ramp execution after a step has been completed and handles orders for DACs
 /// @param Channel channel served in the last cycle
-void ordersForDacsAndRampsGeneration( uint32_t Channel );
+void psuStateMachine( uint32_t Channel );
 
 #endif // SOURCE_PSU_TALKS_H_
