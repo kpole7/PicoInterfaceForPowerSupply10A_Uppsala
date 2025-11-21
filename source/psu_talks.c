@@ -87,7 +87,17 @@ void setMainContactorState( bool IsMainContactorStateOn ){
 
 /// @brief This function reads the logical state of the signal marked as "Sig2" in the diagram
 bool getLogicFeedbackFromPsu( void ){
+
+#if SIMULATE_HARDWARE_PSU == 1
+	int TemporaryChannel = atomic_load_explicit(&UserSelectedChannel, memory_order_acquire);
+	assert(TemporaryChannel < NUMBER_OF_POWER_SUPPLIES);
+	bool Result = (WrittenToDacValue[TemporaryChannel] >= OFFSET_FOR_DEBUGGING);
+	return Result;
+
+#else
 	return gpio_get( GPIO_FOR_PSU_LOGIC_FEEDBACK );
+#endif
+
 }
 
 void ordersForDacsAndRampsGeneration( uint32_t Channel ){

@@ -10,13 +10,8 @@
 #include "config.h"
 
 //---------------------------------------------------------------------------------------------------
-// Macro directives
+// Global variables
 //---------------------------------------------------------------------------------------------------
-
-#define OFFSET_FOR_DEBUGGING		2048
-
-#define SIMULATE_HARDWARE_PSU		1
-
 
 extern uint16_t DebugValueWrittenToPCFs, DebugValueWrittenToDac[NUMBER_OF_POWER_SUPPLIES];
 
