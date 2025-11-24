@@ -33,23 +33,6 @@
 #define RAMP_DELAY						8 // 202
 
 //---------------------------------------------------------------------------------------------------
-// Local constants
-//---------------------------------------------------------------------------------------------------
-
-/// This definition contains a list of states of a finite state machine that represents entire multichannel power supply.
-/// The state machine supports all operating modes of the equipment.
-typedef enum {
-	PSU_STOPPED,
-	PSU_INITIAL_TEST_SIG2_LOW,
-	PSU_INITIAL_TEST_SIG2_HIGH,
-	PSU_INITIAL_ZEROING,
-	PSU_INITIAL_CONTACTOR_ON,
-	PSU_RUNNING,
-	PSU_SHUTTING_DOWN_ZEROING,
-	PSU_SHUTTING_DOWN_CONTACTOR_OFF,
-}PsuOperatingStates;
-
-//---------------------------------------------------------------------------------------------------
 // Global variables
 //---------------------------------------------------------------------------------------------------
 
@@ -94,13 +77,15 @@ static uint32_t WritingToDac_RampDelay[NUMBER_OF_POWER_SUPPLIES];
 /// @return setpoint value for DAC in the present ramp step
 static uint16_t calculateRampStep( uint16_t TargetValue, uint16_t PresentValue );
 
+static void psuFsmRunning( uint32_t Channel );
+
 //---------------------------------------------------------------------------------------------------
 // Function definitions
 //---------------------------------------------------------------------------------------------------
 
 /// @brief This function initializes the module variables and peripherals.
 void initializePsuTalks(void){
-	atomic_store_explicit( &PsuState, PSU_STOPPED, memory_order_release );
+	atomic_store_explicit( &PsuState, PSU_RUNNING, memory_order_release );
 	IsMainContactorStateOn = INITIAL_MAIN_CONTACTOR_STATE;
 
 	initializeWritingToDacs();
@@ -135,13 +120,59 @@ bool getLogicFeedbackFromPsu( void ){
 }
 
 void psuStateMachine( uint32_t Channel ){
-	int TemporaryUserSelectedChannel = -1;
+	assert( Channel < NUMBER_OF_POWER_SUPPLIES );
+
+	int TemporaryPsuState = atomic_load_explicit( &PsuState, memory_order_acquire );
+
+	switch( TemporaryPsuState ){
+	case PSU_STOPPED:
+
+		break;
+
+	case PSU_INITIAL_TEST_SIG2_LOW:
+
+		break;
+
+	case PSU_INITIAL_TEST_SIG2_HIGH:
+
+		break;
+
+	case PSU_INITIAL_ZEROING:
+
+		break;
+
+	case PSU_INITIAL_CONTACTOR_ON:
+
+		break;
+
+	case PSU_RUNNING:
+		psuFsmRunning( Channel );
+		break;
+
+	case PSU_SHUTTING_DOWN_ZEROING:
+
+		break;
+
+	case PSU_SHUTTING_DOWN_CONTACTOR_OFF:
+
+		break;
+
+	default:
+
+	}
+}
+
+static void psuFsmRunning( uint32_t Channel ){
+	// orders
 	int TemporaryOrderCode = atomic_load_explicit( &OrderCode, memory_order_acquire );
 	assert( TemporaryOrderCode < ORDER_COMMAND_ILLEGAL_CODE );
 	assert( TemporaryOrderCode >= ORDER_NONE );
-	assert( Channel < NUMBER_OF_POWER_SUPPLIES );
+
+	int TemporaryUserSelectedChannel = -1;
+
 	if (TemporaryOrderCode > ORDER_ACCEPTED){
 		TemporaryUserSelectedChannel = atomic_load_explicit(&OrderChannel, memory_order_acquire);
+		assert( TemporaryUserSelectedChannel >= 0 );
 		assert( TemporaryUserSelectedChannel < NUMBER_OF_POWER_SUPPLIES );
 		// There is a new order for the TemporarySelectedChannel
 
@@ -161,6 +192,7 @@ void psuStateMachine( uint32_t Channel ){
 		atomic_store_explicit( &OrderCode, ORDER_ACCEPTED, memory_order_release );
 	}
 
+	// continuation of ramps
 	if (TemporaryUserSelectedChannel != Channel){
 		if (WrittenToDacValue[Channel] == UserSetpointDacValue[Channel]){
 			// there is nothing to do

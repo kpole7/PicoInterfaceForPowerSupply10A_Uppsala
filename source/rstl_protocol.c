@@ -103,7 +103,7 @@ CommandErrors executeCommand(void){
 		if ((ParsingResult < 0) || (CommadLength != 4+ParsingResult+2 ) ||
 				(NewCommand[CommadLength-2] != '\r') || (NewCommand[CommadLength-1] != '\n'))
 		{
-			ErrorCode = COMMAND_PCXI_INCORRECT_FORMAT;
+			ErrorCode = COMMAND_INCORRECT_SYNTAX;
 		}
 		else{
 			if (atomic_load_explicit( &OrderCode, memory_order_acquire ) == ORDER_NONE){
@@ -141,13 +141,13 @@ CommandErrors executeCommand(void){
 		if ((ParsingResult < 0) || (CommadLength != 3+ParsingResult+2 ) ||
 				(NewCommand[CommadLength-2] != '\r') || (NewCommand[CommadLength-1] != '\n'))
 		{
-			ErrorCode = COMMAND_PCI_INCORRECT_FORMAT;
+			ErrorCode = COMMAND_INCORRECT_SYNTAX;
 		}
 		else{
 			if ((CommandFloatingPointArgument < -COMMAND_FLOATING_POINT_VALUE_LIMIT) ||
 					(CommandFloatingPointArgument > COMMAND_FLOATING_POINT_VALUE_LIMIT))
 			{
-				ErrorCode = COMMAND_PCI_INCORRECT_VALUE;
+				ErrorCode = COMMAND_INCORRECT_ARGUMENT;
 			}
 			else{
 				if (atomic_load_explicit( &OrderCode, memory_order_acquire ) == ORDER_NONE){
@@ -186,13 +186,13 @@ CommandErrors executeCommand(void){
 		if ((ParsingResult < 0) || (CommadLength != 3+ParsingResult+2 ) ||
 				(NewCommand[CommadLength-2] != '\r') || (NewCommand[CommadLength-1] != '\n'))
 		{
-			ErrorCode = COMMAND_PC_INCORRECT_FORMAT;
+			ErrorCode = COMMAND_INCORRECT_SYNTAX;
 		}
 		else{
 			if ((CommandFloatingPointArgument < -COMMAND_FLOATING_POINT_VALUE_LIMIT) ||
 					(CommandFloatingPointArgument > COMMAND_FLOATING_POINT_VALUE_LIMIT))
 			{
-				ErrorCode = COMMAND_PC_INCORRECT_VALUE;
+				ErrorCode = COMMAND_INCORRECT_ARGUMENT;
 			}
 			else{
 				if (atomic_load_explicit( &OrderCode, memory_order_acquire ) == ORDER_NONE){
@@ -227,7 +227,7 @@ CommandErrors executeCommand(void){
 	}
 	else if (strstr(NewCommand, "?PCI") == NewCommand){ // "Get set-point value of current" command
 		if ((NewCommand[CommadLength-2] != '\r') || (NewCommand[CommadLength-1] != '\n')){
-			ErrorCode = COMMAND__PCI_INCORRECT_FORMAT;
+			ErrorCode = COMMAND_INCORRECT_SYNTAX;
 		}
 		else{
 			// essential action
@@ -241,7 +241,7 @@ CommandErrors executeCommand(void){
 	}
 	else if (strstr(NewCommand, "?PC") == NewCommand){ // "Get set-point value of current" command
 		if ((NewCommand[CommadLength-2] != '\r') || (NewCommand[CommadLength-1] != '\n')){
-			ErrorCode = COMMAND__PCI_INCORRECT_FORMAT;
+			ErrorCode = COMMAND_INCORRECT_SYNTAX;
 		}
 		else{
 			// essential action
@@ -259,11 +259,11 @@ CommandErrors executeCommand(void){
 		if ((ParsingResult < 0) || (CommadLength != 1+ParsingResult+2 ) ||
 				(NewCommand[CommadLength-2] != '\r') || (NewCommand[CommadLength-1] != '\n'))
 		{
-			ErrorCode = COMMAND_Z_INCORRECT_FORMAT;
+			ErrorCode = COMMAND_INCORRECT_SYNTAX;
 		}
 		else{
 			if ((0 == TemporaryChannel) || (TemporaryChannel > NUMBER_OF_POWER_SUPPLIES)){
-				ErrorCode = COMMAND_Z_INCORRECT_VALUE;
+				ErrorCode = COMMAND_INCORRECT_ARGUMENT;
 			}
 			else{
 				// essential action
@@ -276,7 +276,7 @@ CommandErrors executeCommand(void){
 	}
 	else if (strstr(NewCommand, "?Z") == NewCommand){ // "Get selected channel number" command
 		if ((NewCommand[CommadLength-2] != '\r') || (NewCommand[CommadLength-1] != '\n')){
-			ErrorCode = COMMAND__Z_INCORRECT_FORMAT;
+			ErrorCode = COMMAND_INCORRECT_SYNTAX;
 		}
 		else{
 			// essential action
@@ -290,14 +290,14 @@ CommandErrors executeCommand(void){
 	else if (strstr(NewCommand, "PWR") == NewCommand){ // "Switch power on/off" command
 		uint8_t TemporaryPowerArgument;
 		ParsingResult = parseOneDigitArgument( &TemporaryPowerArgument, NewCommand+5, '\r' );
-		if ((ParsingResult < 0) || (CommadLength != 5+ParsingResult+2 ) ||
+		if ((ParsingResult < 0) || (CommadLength != 3+ParsingResult+2 ) ||
 				(NewCommand[CommadLength-2] != '\r') || (NewCommand[CommadLength-1] != '\n'))
 		{
-			ErrorCode = COMMAND_POWER_INCORRECT_FORMAT;
+			ErrorCode = COMMAND_INCORRECT_SYNTAX;
 		}
 		else{
 			if (TemporaryPowerArgument > 1){
-				ErrorCode = COMMAND_POWER_INCORRECT_VALUE;
+				ErrorCode = COMMAND_INCORRECT_ARGUMENT;
 			}
 			else{
 				// essential action
@@ -320,9 +320,55 @@ CommandErrors executeCommand(void){
 					(unsigned)atomic_load_explicit(&UserSelectedChannel, memory_order_acquire)+1 );
 		}
 	}
+	else if (strstr(NewCommand, "POWER") == NewCommand){ // "Switch power on/off" command
+		uint8_t TemporaryPowerArgument;
+		ParsingResult = parseOneDigitArgument( &TemporaryPowerArgument, NewCommand+5, '\r' );
+		if ((ParsingResult < 0) || (CommadLength != 5+ParsingResult+2 ) ||
+				(NewCommand[CommadLength-2] != '\r') || (NewCommand[CommadLength-1] != '\n'))
+		{
+			ErrorCode = COMMAND_INCORRECT_SYNTAX;
+		}
+		else{
+			if (TemporaryPowerArgument > 1){
+				ErrorCode = COMMAND_INCORRECT_ARGUMENT;
+			}
+			else{
+				// essential action
+				int TemporaryState = atomic_load_explicit(&PsuState, memory_order_acquire);
+				if (1 == TemporaryPowerArgument){
+					// proper syntax; command: power up
+					if (PSU_STOPPED == TemporaryState){
+						atomic_store_explicit( &OrderCode, ORDER_COMMAND_POWER_UP, memory_order_release );
+						transmitViaSerialPort(">");
+					}
+					else{
+						ErrorCode = COMMAND_INVOKED_IN_INCONSISTENT_STATE;
+					}
+				}
+				else{
+					// proper syntax; command: power down
+					if (PSU_RUNNING == TemporaryState){
+						atomic_store_explicit( &OrderCode, ORDER_COMMAND_POWER_DOWN, memory_order_release );
+						transmitViaSerialPort(">");
+					}
+					else{
+						ErrorCode = COMMAND_INVOKED_IN_INCONSISTENT_STATE;
+					}
+				}
+			}
+		}
+		if (IsMainContactorStateOn){
+			printf( "cmd pow\tE=%d\tch=%u\tpower on\n", ErrorCode,
+					(unsigned)atomic_load_explicit(&UserSelectedChannel, memory_order_acquire)+1 );
+		}
+		else{
+			printf( "cmd pow\tE=%d\tch=%u\tpower off\n", ErrorCode,
+					(unsigned)atomic_load_explicit(&UserSelectedChannel, memory_order_acquire)+1 );
+		}
+	}
 	else if (strstr(NewCommand, "?PWR") == NewCommand){ // "Get state of power switch" command
 		if ((NewCommand[CommadLength-2] != '\r') || (NewCommand[CommadLength-1] != '\n')){
-			ErrorCode = COMMAND__POWER_INCORRECT_FORMAT;
+			ErrorCode = COMMAND_INCORRECT_SYNTAX;
 		}
 		else{
 			// essential action
@@ -344,7 +390,7 @@ CommandErrors executeCommand(void){
 	}
 	else if (strstr(NewCommand, "MC") == NewCommand){ // "Measure current" command
 		if ((NewCommand[CommadLength-2] != '\r') || (NewCommand[CommadLength-1] != '\n')){
-			ErrorCode = COMMAND_MC_INCORRECT_FORMAT;
+			ErrorCode = COMMAND_INCORRECT_SYNTAX;
 		}
 		else{
 			// essential action
@@ -358,7 +404,7 @@ CommandErrors executeCommand(void){
 	else if (strstr(NewCommand, "MY") == NewCommand){ // "Get Sig2 value" command
 		bool Sig2Value = false;
 		if ((NewCommand[CommadLength-2] != '\r') || (NewCommand[CommadLength-1] != '\n')){
-			ErrorCode = COMMAND_MY_INCORRECT_FORMAT;
+			ErrorCode = COMMAND_INCORRECT_SYNTAX;
 		}
 		else{
 			// essential action
@@ -375,7 +421,7 @@ CommandErrors executeCommand(void){
 	}
 	else if (strstr(NewCommand, "VERSION") == NewCommand){ // "Get info about the current version" command
 		if ((NewCommand[CommadLength-2] != '\r') || (NewCommand[CommadLength-1] != '\n')){
-			ErrorCode = COMMAND_VERSION_INCORRECT_FORMAT;
+			ErrorCode = COMMAND_INCORRECT_SYNTAX;
 		}
 		else{
 			// essential action

@@ -17,6 +17,23 @@
 #define INITIAL_MAIN_CONTACTOR_STATE	false
 
 //---------------------------------------------------------------------------------------------------
+// Global constants
+//---------------------------------------------------------------------------------------------------
+
+/// This definition contains a list of states of a finite state machine that represents entire multichannel power supply.
+/// The state machine supports all operating modes of the equipment.
+typedef enum {
+	PSU_STOPPED,
+	PSU_INITIAL_TEST_SIG2_LOW,
+	PSU_INITIAL_TEST_SIG2_HIGH,
+	PSU_INITIAL_ZEROING,
+	PSU_INITIAL_CONTACTOR_ON,
+	PSU_RUNNING,
+	PSU_SHUTTING_DOWN_ZEROING,
+	PSU_SHUTTING_DOWN_CONTACTOR_OFF,
+}PsuOperatingStates;
+
+//---------------------------------------------------------------------------------------------------
 // Global variables
 //---------------------------------------------------------------------------------------------------
 
