@@ -80,13 +80,18 @@ static uint32_t WritingToDac_RampDelay[NUMBER_OF_POWER_SUPPLIES];
 // Function prototypes
 //---------------------------------------------------------------------------------------------------
 
-/// @brief This function calculates a new setpoint value for the DAC, that corresponds to a single step of the ramp
-/// If the ramp crosses zero, it may require additional slowdown.
-/// The true zero level is an analog value, so thresholds slightly below zero and slightly above zero are necessary.
-/// We never know exactly what digital value corresponds to analog zero (furthermore, a difference should be made between "0+" and "0-").
-/// @param TargetValue user-specified value converted to DAC setting
-/// @param PresentValue the last setting written to the DAC
-/// @return the DAC setpoint following the ramp towards the TargetValue
+/// @brief The function calculates the value to be programmed into the DAC in the next step of the ramp.
+/// The current DAC status is represented by PresentValue. The target value set by the user (in DAC units) is given by TargetValue.
+/// The digital value to be programmed into the DAC is in the range 0 ... FULL_SCALE_IN_DAC_UNITS.
+/// The output current of the power supply is zeroed for a setpoint value approximately equal to OFFSET_IN_DAC_UNITS
+/// (you never know exactly what digital value corresponds to analog zero).
+/// The maximum rate of change of the setpoint in DAC units is FAST_RAMP_STEP_IN_DAC_UNITS per cycle period.
+/// Near zero output current (corresponding to the OFFSET_IN_DAC_UNITS value at the DAC input), there is an area of slower changes.
+/// This area extends from -OFFSET_IN_DAC_UNITS + NEAR_ZERO_REGION_IN_DAC_UNITS  to  OFFSET_IN_DAC_UNITS + NEAR_ZERO_REGION_IN_DAC_UNITS.
+/// In this area, the rate of change of the setpoint (in DAC units) is SLOW_RAMP_STEP_IN_DAC_UNITS for the cycle period.
+/// @param TargetValue user-specified value (in DAC units)
+/// @param PresentValue present value at the DAC input
+/// @return setpoint value for DAC in the present ramp step
 static uint16_t calculateRampStep( uint16_t TargetValue, uint16_t PresentValue );
 
 //---------------------------------------------------------------------------------------------------
@@ -188,32 +193,34 @@ void psuStateMachine( uint32_t Channel ){
 static uint16_t calculateRampStep( uint16_t TargetValue, uint16_t PresentValue ){
 	uint16_t TemporaryRequiredDacValue = TargetValue;
 	uint16_t RampStep = FAST_RAMP_STEP_IN_DAC_UNITS;
+
+	// Deal with the area near zero current.
 	if (PresentValue > (OFFSET_IN_DAC_UNITS + NEAR_ZERO_REGION_IN_DAC_UNITS)){
 		if (TargetValue < (OFFSET_IN_DAC_UNITS + NEAR_ZERO_REGION_IN_DAC_UNITS)){
-			//			           |  <----X----<                   the arrow indicates the present value and the required value
+			//			           |  <---------<                   the arrow indicates the present value and the user-specified setpoint value
 			//			-----------|---0---|----------------> I
-			TemporaryRequiredDacValue = (OFFSET_IN_DAC_UNITS + NEAR_ZERO_REGION_IN_DAC_UNITS);
+			TemporaryRequiredDacValue = (OFFSET_IN_DAC_UNITS + NEAR_ZERO_REGION_IN_DAC_UNITS);	// The ramp will be fast, but possibly shortened
 		}
 		else{
 			//			           |       |   <--------<
 			//			           |       <--------<
 			//			           |       |   >-------->
 			//			-----------|---0---|----------------> I
-			// do not slow down
+			// do nothing
 		}
 	}
 	else if (PresentValue < (OFFSET_IN_DAC_UNITS - NEAR_ZERO_REGION_IN_DAC_UNITS)){
 		if (TargetValue   > (OFFSET_IN_DAC_UNITS - NEAR_ZERO_REGION_IN_DAC_UNITS)){
-			//			      >----X---->  |
+			//			      >--------->  |
 			//			-----------|---0---|----------------> I
-			TemporaryRequiredDacValue = (OFFSET_IN_DAC_UNITS - NEAR_ZERO_REGION_IN_DAC_UNITS);
+			TemporaryRequiredDacValue = (OFFSET_IN_DAC_UNITS - NEAR_ZERO_REGION_IN_DAC_UNITS);	// The ramp will be fast, but possibly shortened
 		}
 		else{
 			//			 <------<  |       |
 			//			 >------>  |       |
 			//			    >------>       |
 			//			-----------|---0---|----------------> I
-			// do not slow down
+			// do nothing
 		}
 	}
 	else{
@@ -223,7 +230,7 @@ static uint16_t calculateRampStep( uint16_t TargetValue, uint16_t PresentValue )
 			//			           |     >-->
 			//			           |       >-->
 			//			-----------|---0---|----------------> I
-			RampStep = SLOW_RAMP_STEP_IN_DAC_UNITS;
+			RampStep = SLOW_RAMP_STEP_IN_DAC_UNITS; // slow down
 		}
 		else if ((PresentValue >= (OFFSET_IN_DAC_UNITS - NEAR_ZERO_REGION_IN_DAC_UNITS)) &&
 				(TargetValue < (OFFSET_IN_DAC_UNITS - NEAR_ZERO_REGION_IN_DAC_UNITS)))
@@ -231,13 +238,13 @@ static uint16_t calculateRampStep( uint16_t TargetValue, uint16_t PresentValue )
 			//			         <--<      |
 			//			        <--<       |
 			//			-----------|---0---|----------------> I
-			RampStep = SLOW_RAMP_STEP_IN_DAC_UNITS;
+			RampStep = SLOW_RAMP_STEP_IN_DAC_UNITS; // slow down
 		}
 		else{
 			//			           | <--<  |
 			//			           | >-->  |
 			//			-----------|---0---|----------------> I
-			RampStep = SLOW_RAMP_STEP_IN_DAC_UNITS;
+			RampStep = SLOW_RAMP_STEP_IN_DAC_UNITS; // slow down
 		}
 	}
 
