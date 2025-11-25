@@ -114,23 +114,30 @@ CommandErrors executeCommand(void){
 			}
 			else{
 				if (atomic_load_explicit( &OrderCode, memory_order_acquire ) == ORDER_NONE){
-					// essential action
-					ValueInDacUnits = (int16_t)round(CommandFloatingPointArgument * AMPERES_TO_DAC_COEFFICIENT);
-					ValueInDacUnits += OFFSET_IN_DAC_UNITS;
-					if (ValueInDacUnits < 0){
-						ValueInDacUnits = 0;
+					int TemporaryState = atomic_load_explicit(&PsuState, memory_order_acquire);
+					// proper syntax; command: power up
+					if (PSU_RUNNING == TemporaryState){
+						// essential action
+						ValueInDacUnits = (int16_t)round(CommandFloatingPointArgument * AMPERES_TO_DAC_COEFFICIENT);
+						ValueInDacUnits += OFFSET_IN_DAC_UNITS;
+						if (ValueInDacUnits < 0){
+							ValueInDacUnits = 0;
+						}
+						if (FULL_SCALE_IN_DAC_UNITS < ValueInDacUnits){
+							ValueInDacUnits = FULL_SCALE_IN_DAC_UNITS;
+						}
+						int TemporarySelectedChannel = atomic_load_explicit(&UserSelectedChannel, memory_order_acquire);
+						if (TemporarySelectedChannel < NUMBER_OF_POWER_SUPPLIES){
+							UserSetpointDacValue[TemporarySelectedChannel] = (uint16_t)ValueInDacUnits;
+							RequiredAmperesValue[TemporarySelectedChannel] = CommandFloatingPointArgument;
+						}
+						atomic_store_explicit( &OrderCode, ORDER_COMMAND_PC, memory_order_release );
+						atomic_store_explicit( &OrderChannel, TemporarySelectedChannel, memory_order_release );
+						transmitViaSerialPort(">");
 					}
-					if (FULL_SCALE_IN_DAC_UNITS < ValueInDacUnits){
-						ValueInDacUnits = FULL_SCALE_IN_DAC_UNITS;
+					else{
+						ErrorCode = COMMAND_INVOKED_IN_INCONSISTENT_STATE;
 					}
-					int TemporarySelectedChannel = atomic_load_explicit(&UserSelectedChannel, memory_order_acquire);
-					if (TemporarySelectedChannel < NUMBER_OF_POWER_SUPPLIES){
-						UserSetpointDacValue[TemporarySelectedChannel] = (uint16_t)ValueInDacUnits;
-						RequiredAmperesValue[TemporarySelectedChannel] = CommandFloatingPointArgument;
-					}
-					atomic_store_explicit( &OrderCode, ORDER_COMMAND_PC, memory_order_release );
-					atomic_store_explicit( &OrderChannel, TemporarySelectedChannel, memory_order_release );
-					transmitViaSerialPort(">");
 				}
 				else{
 					ErrorCode = COMMAND_OUT_OF_SERVICE;

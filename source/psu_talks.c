@@ -87,6 +87,8 @@ static bool psuFsmTestSig2High(void);
 static bool psuFsmZeroing(void);
 static bool psuFsmTurnContactorOn(void);
 static bool psuFsmRunning( uint32_t Channel );
+static bool psuFsmShutingDownZeroing( uint32_t Channel );
+static bool psuFsmShutingDownSwitchOff(void);
 
 //---------------------------------------------------------------------------------------------------
 // Function definitions
@@ -113,8 +115,8 @@ void initializePsuTalks(void){
 }
 
 /// @brief This function changes the power contactor state
-void setMainContactorState( bool IsMainContactorStateOn ){
-	gpio_put(GPIO_FOR_POWER_CONTACTOR, IsMainContactorStateOn);
+void setMainContactorState( bool NewState ){
+	gpio_put(GPIO_FOR_POWER_CONTACTOR, NewState);
 }
 
 /// @brief This function reads the logical state of the signal marked as "Sig2" in the diagram
@@ -172,11 +174,11 @@ bool psuStateMachine( uint32_t Channel ){
 		break;
 
 	case PSU_SHUTTING_DOWN_ZEROING:
-
+		psuFsmShutingDownZeroing( Channel );
 		break;
 
 	case PSU_SHUTTING_DOWN_CONTACTOR_OFF:
-
+		psuFsmShutingDownSwitchOff();
 		break;
 
 	default:
@@ -315,7 +317,7 @@ static bool psuFsmRunning( uint32_t Channel ){
 		TemporaryUserSelectedChannel = atomic_load_explicit(&OrderChannel, memory_order_acquire);
 		assert( TemporaryUserSelectedChannel >= 0 );
 		assert( TemporaryUserSelectedChannel < NUMBER_OF_POWER_SUPPLIES );
-		// There is a new order for the TemporarySelectedChannel
+		// There is a new order
 
 		if (ORDER_COMMAND_PCI == TemporaryOrderCode){
 			InstantaneousSetpointDacValue[TemporaryUserSelectedChannel] = UserSetpointDacValue[TemporaryUserSelectedChannel];
@@ -330,6 +332,17 @@ static bool psuFsmRunning( uint32_t Channel ){
 			WritingToDac_IsValidData[TemporaryUserSelectedChannel] = true;
 			WritingToDac_RampDelay[TemporaryUserSelectedChannel] = 0;
 			atomic_store_explicit( &OrderCode, ORDER_ACCEPTED, memory_order_release );
+		}
+
+		if (ORDER_COMMAND_POWER_DOWN == TemporaryOrderCode){
+			for (int J = 0; J < NUMBER_OF_INSTALLED_PSU; J++ ){
+				InstantaneousSetpointDacValue[J] = calculateRampStep( OFFSET_IN_DAC_UNITS, WrittenToDacValue[J] );
+				WritingToDac_IsValidData[J] = true;
+				WritingToDac_RampDelay[J] = 0;
+			}
+			atomic_store_explicit( &OrderCode, ORDER_ACCEPTED, memory_order_release );
+			atomic_store_explicit( &PsuState, PSU_SHUTTING_DOWN_ZEROING, memory_order_release );
+			return false;
 		}
 	}
 
@@ -361,6 +374,62 @@ static bool psuFsmRunning( uint32_t Channel ){
 			}
 		}
 	}
+	return false;
+}
+
+static bool psuFsmShutingDownZeroing( uint32_t Channel ){
+	assert( INITIAL_MAIN_CONTACTOR_STATE != IsMainContactorStateOn );
+	bool PhysicalValue = gpio_get(GPIO_FOR_POWER_CONTACTOR);
+	assert( true == PhysicalValue );
+	(void)PhysicalValue;  // So that the compiler doesn't complain
+
+	if (OFFSET_IN_DAC_UNITS == WrittenToDacValue[Channel]){
+		WritingToDac_IsValidData[Channel] = false;
+		WritingToDac_RampDelay[Channel] = 0;
+
+		for (int J = 0; J < NUMBER_OF_INSTALLED_PSU; J++ ){
+			if (OFFSET_IN_DAC_UNITS != WrittenToDacValue[J]){
+				// other channel is continuing its ramp
+				return false;
+			}
+		}
+		// all ramps are completed
+		atomic_store_explicit( &PsuState, PSU_SHUTTING_DOWN_CONTACTOR_OFF, memory_order_release );
+	}
+	else{
+		// The ramp continuation
+		if (0 == WritingToDac_RampDelay[Channel]){
+			WritingToDac_RampDelay[Channel] = RAMP_DELAY;
+		}
+		else{
+			WritingToDac_RampDelay[Channel]--;
+		}
+
+		if (0 == WritingToDac_RampDelay[Channel]){
+			// next ramp step
+			InstantaneousSetpointDacValue[Channel] = calculateRampStep( OFFSET_IN_DAC_UNITS, WrittenToDacValue[Channel] );
+			WritingToDac_IsValidData[Channel] = true;
+		}
+		else{
+			// wait
+			WritingToDac_IsValidData[Channel] = false;
+		}
+	}
+	return false;
+}
+
+static bool psuFsmShutingDownSwitchOff(void){
+	assert( INITIAL_MAIN_CONTACTOR_STATE != IsMainContactorStateOn );
+	bool PhysicalValue = gpio_get(GPIO_FOR_POWER_CONTACTOR);
+	assert( true == PhysicalValue );
+	(void)PhysicalValue;  // So that the compiler doesn't complain
+
+	IsMainContactorStateOn = false;
+	setMainContactorState( IsMainContactorStateOn );
+
+	printf("main contactor switched off\n");
+
+	atomic_store_explicit( &PsuState, PSU_STOPPED, memory_order_release );
 	return false;
 }
 
