@@ -357,14 +357,7 @@ CommandErrors executeCommand(void){
 				}
 			}
 		}
-		if (IsMainContactorStateOn){
-			printf( "cmd pow\tE=%d\tch=%u\tpower on\n", ErrorCode,
-					(unsigned)atomic_load_explicit(&UserSelectedChannel, memory_order_acquire)+1 );
-		}
-		else{
-			printf( "cmd pow\tE=%d\tch=%u\tpower off\n", ErrorCode,
-					(unsigned)atomic_load_explicit(&UserSelectedChannel, memory_order_acquire)+1 );
-		}
+		printf( "cmd pow %d\tE=%d\n", TemporaryPowerArgument, ErrorCode );
 	}
 	else if (strstr(NewCommand, "?PWR") == NewCommand){ // "Get state of power switch" command
 		if ((NewCommand[CommadLength-2] != '\r') || (NewCommand[CommadLength-1] != '\n')){

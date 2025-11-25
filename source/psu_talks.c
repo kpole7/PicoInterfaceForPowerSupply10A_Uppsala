@@ -269,7 +269,15 @@ static bool psuFsmTurnContactorOn(void){
 	assert( false == PhysicalValue );
 	(void)PhysicalValue; // So that the compiler doesn't complain
 
-	printf( "WrittenToDacValue:\t%d\t%d\t%d\t%d\n", WrittenToDacValue[0], WrittenToDacValue[1], WrittenToDacValue[2], WrittenToDacValue[3] );
+	printf( "Sig2LastReadings:\t%d / %d\t%d / %d\t%d / %d\t%d / %d\n",
+			Sig2LastReadings[0][0], Sig2LastReadings[0][1],
+			Sig2LastReadings[1][0], Sig2LastReadings[1][1],
+			Sig2LastReadings[2][0], Sig2LastReadings[2][1],
+			Sig2LastReadings[3][0], Sig2LastReadings[3][1] );
+
+	for (int J=0; J < NUMBER_OF_INSTALLED_PSU; J++ ){
+		WritingToDac_IsValidData[J] = false;
+	}
 
 	for (int J=0; J < NUMBER_OF_INSTALLED_PSU; J++ ){
 		if (OFFSET_IN_DAC_UNITS != WrittenToDacValue[J]){
@@ -281,6 +289,11 @@ static bool psuFsmTurnContactorOn(void){
 			return true;
 		}
 	}
+	IsMainContactorStateOn = true;
+	setMainContactorState( IsMainContactorStateOn );
+
+	printf("main contactor switched on\n");
+
 	atomic_store_explicit( &PsuState, PSU_RUNNING, memory_order_release );
 	return true;
 }

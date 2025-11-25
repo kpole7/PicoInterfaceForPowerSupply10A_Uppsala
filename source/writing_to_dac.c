@@ -248,10 +248,10 @@ void writeToDacStateMachine(void){
 			printf( "%12llu\ti2c\t%d\t%d\t%d\t%d\t%d\n",
 					time_us_64(),
 					WritingToDac_Channel,
-					InstantaneousSetpointDacValue[0]-OFFSET_IN_DAC_UNITS,
-					InstantaneousSetpointDacValue[1]-OFFSET_IN_DAC_UNITS,
-					InstantaneousSetpointDacValue[2]-OFFSET_IN_DAC_UNITS,
-					InstantaneousSetpointDacValue[3]-OFFSET_IN_DAC_UNITS );
+					WrittenToDacValue[0]-OFFSET_IN_DAC_UNITS,
+					WrittenToDacValue[1]-OFFSET_IN_DAC_UNITS,
+					WrittenToDacValue[2]-OFFSET_IN_DAC_UNITS,
+					WrittenToDacValue[3]-OFFSET_IN_DAC_UNITS );
 			if ((WritingToDac_Channel != DacAddress) ||
 					(InstantaneousSetpointDacValue[WritingToDac_Channel] != DebugValueWrittenToDac[DacAddress]))
 			{
