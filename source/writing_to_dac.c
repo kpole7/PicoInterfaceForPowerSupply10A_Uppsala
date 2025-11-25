@@ -173,11 +173,16 @@ void writeToDacStateMachine(void){
 
 		gpio_put( GPIO_FOR_NOT_WR_OUTPUT, true );
 
-		psuStateMachine( WritingToDac_Channel );
+		bool SynchronizeChannels = psuStateMachine( WritingToDac_Channel );
 
-		WritingToDac_Channel++;
-		if (NUMBER_OF_POWER_SUPPLIES == WritingToDac_Channel){
+		if (SynchronizeChannels){
 			WritingToDac_Channel = 0;
+		}
+		else{
+			WritingToDac_Channel++;
+			if (NUMBER_OF_POWER_SUPPLIES == WritingToDac_Channel){
+				WritingToDac_Channel = 0;
+			}
 		}
 
 		if (WritingToDac_IsValidData[WritingToDac_Channel]){

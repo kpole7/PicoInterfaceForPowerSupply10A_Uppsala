@@ -81,12 +81,12 @@ static uint32_t WritingToDac_RampDelay[NUMBER_OF_POWER_SUPPLIES];
 /// @return setpoint value for DAC in the present ramp step
 static uint16_t calculateRampStep( uint16_t TargetValue, uint16_t PresentValue );
 
-static void psuFsmStopped(void);
-static void psuFsmTestSig2Low(void);
-static void psuFsmTestSig2High(void);
-static void psuFsmZeroing(void);
-static void psuFsmTurnContactorOn(void);
-static void psuFsmRunning( uint32_t Channel );
+static bool psuFsmStopped(void);
+static bool psuFsmTestSig2Low(void);
+static bool psuFsmTestSig2High(void);
+static bool psuFsmZeroing(void);
+static bool psuFsmTurnContactorOn(void);
+static bool psuFsmRunning( uint32_t Channel );
 
 //---------------------------------------------------------------------------------------------------
 // Function definitions
@@ -132,34 +132,43 @@ bool getLogicFeedbackFromPsu( void ){
 
 }
 
-void psuStateMachine( uint32_t Channel ){
+bool psuStateMachine( uint32_t Channel ){
+	bool Result = false;
 	assert( Channel < NUMBER_OF_POWER_SUPPLIES );
 
 	int TemporaryPsuState = atomic_load_explicit( &PsuState, memory_order_acquire );
 
 	switch( TemporaryPsuState ){
 	case PSU_STOPPED:
-		psuFsmStopped();
+		Result = psuFsmStopped();
 		break;
 
 	case PSU_INITIAL_TEST_SIG2_LOW:
-		psuFsmTestSig2Low();
+		if (NUMBER_OF_POWER_SUPPLIES-1 == Channel){
+			Result = psuFsmTestSig2Low();
+		}
 		break;
 
 	case PSU_INITIAL_TEST_SIG2_HIGH:
-		psuFsmTestSig2High();
+		if (NUMBER_OF_POWER_SUPPLIES-1 == Channel){
+			Result = psuFsmTestSig2High();
+		}
 		break;
 
 	case PSU_INITIAL_ZEROING:
-		psuFsmZeroing();
+		if (NUMBER_OF_POWER_SUPPLIES-1 == Channel){
+			Result = psuFsmZeroing();
+		}
 		break;
 
 	case PSU_INITIAL_CONTACTOR_ON:
-		psuFsmTurnContactorOn();
+		if (NUMBER_OF_POWER_SUPPLIES-1 == Channel){
+			Result = psuFsmTurnContactorOn();
+		}
 		break;
 
 	case PSU_RUNNING:
-		psuFsmRunning( Channel );
+		Result = psuFsmRunning( Channel );
 		break;
 
 	case PSU_SHUTTING_DOWN_ZEROING:
@@ -182,9 +191,10 @@ void psuStateMachine( uint32_t Channel ){
 		OldPsuState = TemporaryPsuState;
 	}
 #endif
+	return Result;
 }
 
-static void psuFsmStopped(void){
+static bool psuFsmStopped(void){
 	assert( INITIAL_MAIN_CONTACTOR_STATE == IsMainContactorStateOn );
 	bool PhysicalValue = gpio_get(GPIO_FOR_POWER_CONTACTOR);
 	assert( false == PhysicalValue );
@@ -201,84 +211,81 @@ static void psuFsmStopped(void){
 			atomic_store_explicit( &PsuState, PSU_INITIAL_TEST_SIG2_LOW, memory_order_release );
 		}
 	}
+	for (int J=0; J < NUMBER_OF_POWER_SUPPLIES; J++ ){
+		WritingToDac_IsValidData[J] = false;
+	}
+	return true;
 }
 
-static void psuFsmTestSig2Low(void){
+static bool psuFsmTestSig2Low(void){
 	assert( INITIAL_MAIN_CONTACTOR_STATE == IsMainContactorStateOn );
 	bool PhysicalValue = gpio_get(GPIO_FOR_POWER_CONTACTOR);
 	assert( false == PhysicalValue );
 	(void)PhysicalValue; // So that the compiler doesn't complain
 
 	// continue preparatory activities for switching on the contactor
-#if SIMULATE_HARDWARE_PSU
-	for (int J=0; J < NUMBER_OF_POWER_SUPPLIES; J++ ){
-#else
-	for (int J=0; J < PHYSICALY_INSTALLED_PSU; J++ ){
-#endif
+	for (int J=0; J < NUMBER_OF_INSTALLED_PSU; J++ ){
 		InstantaneousSetpointDacValue[J] = 0;
 		WritingToDac_IsValidData[J] = true;
 		WritingToDac_RampDelay[J] = 0;
 	}
 	atomic_store_explicit( &PsuState, PSU_INITIAL_TEST_SIG2_HIGH, memory_order_release );
+	return true;
 }
 
-static void psuFsmTestSig2High(void){
+static bool psuFsmTestSig2High(void){
 	assert( INITIAL_MAIN_CONTACTOR_STATE == IsMainContactorStateOn );
 	bool PhysicalValue = gpio_get(GPIO_FOR_POWER_CONTACTOR);
 	assert( false == PhysicalValue );
 	(void)PhysicalValue; // So that the compiler doesn't complain
 
-#if SIMULATE_HARDWARE_PSU
-	for (int J=0; J < NUMBER_OF_POWER_SUPPLIES; J++ ){
-#else
-	for (int J=0; J < PHYSICALY_INSTALLED_PSU; J++ ){
-#endif
+	for (int J=0; J < NUMBER_OF_INSTALLED_PSU; J++ ){
 		InstantaneousSetpointDacValue[J] = FULL_SCALE_IN_DAC_UNITS;
 		WritingToDac_IsValidData[J] = true;
 		WritingToDac_RampDelay[J] = 0;
 	}
 	atomic_store_explicit( &PsuState, PSU_INITIAL_ZEROING, memory_order_release );
+	return true;
 }
 
-static void psuFsmZeroing(void){
+static bool psuFsmZeroing(){
 	assert( INITIAL_MAIN_CONTACTOR_STATE == IsMainContactorStateOn );
 	bool PhysicalValue = gpio_get(GPIO_FOR_POWER_CONTACTOR);
 	assert( false == PhysicalValue );
 	(void)PhysicalValue; // So that the compiler doesn't complain
 
-#if SIMULATE_HARDWARE_PSU
-	for (int J=0; J < NUMBER_OF_POWER_SUPPLIES; J++ ){
-#else
-	for (int J=0; J < PHYSICALY_INSTALLED_PSU; J++ ){
-#endif
+	for (int J=0; J < NUMBER_OF_INSTALLED_PSU; J++ ){
 		InstantaneousSetpointDacValue[J] = OFFSET_IN_DAC_UNITS;
 		WritingToDac_IsValidData[J] = true;
 		WritingToDac_RampDelay[J] = 0;
 	}
 	atomic_store_explicit( &PsuState, PSU_INITIAL_CONTACTOR_ON, memory_order_release );
+	return true;
 }
 
-static void psuFsmTurnContactorOn(void){
+static bool psuFsmTurnContactorOn(void){
 	assert( INITIAL_MAIN_CONTACTOR_STATE == IsMainContactorStateOn );
 	bool PhysicalValue = gpio_get(GPIO_FOR_POWER_CONTACTOR);
 	assert( false == PhysicalValue );
 	(void)PhysicalValue; // So that the compiler doesn't complain
 
-#if SIMULATE_HARDWARE_PSU
-	for (int J=0; J < NUMBER_OF_POWER_SUPPLIES; J++ ){
-#else
-	for (int J=0; J < PHYSICALY_INSTALLED_PSU; J++ ){
-#endif
+	printf( "WrittenToDacValue:\t%d\t%d\t%d\t%d\n", WrittenToDacValue[0], WrittenToDacValue[1], WrittenToDacValue[2], WrittenToDacValue[3] );
+
+	for (int J=0; J < NUMBER_OF_INSTALLED_PSU; J++ ){
 		if (OFFSET_IN_DAC_UNITS != WrittenToDacValue[J]){
 			// something went wrong
+			for (int J=0; J < NUMBER_OF_POWER_SUPPLIES; J++ ){
+				WritingToDac_IsValidData[J] = false;
+			}
 			atomic_store_explicit( &PsuState, PSU_STOPPED, memory_order_release );
-			return;
+			return true;
 		}
 	}
 	atomic_store_explicit( &PsuState, PSU_RUNNING, memory_order_release );
+	return true;
 }
 
-static void psuFsmRunning( uint32_t Channel ){
+static bool psuFsmRunning( uint32_t Channel ){
 	assert( INITIAL_MAIN_CONTACTOR_STATE != IsMainContactorStateOn );
 	bool PhysicalValue = gpio_get(GPIO_FOR_POWER_CONTACTOR);
 	assert( true == PhysicalValue );
@@ -341,6 +348,7 @@ static void psuFsmRunning( uint32_t Channel ){
 			}
 		}
 	}
+	return false;
 }
 
 static uint16_t calculateRampStep( uint16_t TargetValue, uint16_t PresentValue ){

@@ -73,6 +73,7 @@ bool getLogicFeedbackFromPsu( void );
 
 /// @brief This function supervises ramp execution after a step has been completed and handles orders for DACs
 /// @param Channel channel served in the last cycle
-void psuStateMachine( uint32_t Channel );
+/// @return synchronize channels
+bool psuStateMachine( uint32_t Channel );
 
 #endif // SOURCE_PSU_TALKS_H_
