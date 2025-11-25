@@ -54,6 +54,10 @@ extern volatile bool WritingToDac_IsValidData[NUMBER_OF_POWER_SUPPLIES];
 /// @brief The state of the power contactor: true=power on; false=power off
 extern bool IsMainContactorStateOn;
 
+/// This array is used to store readings of Sig2 for each channel and
+/// for two DAC values: 0 and FULL_SCALE_IN_DAC_UNITS
+extern volatile bool Sig2LastReadings[NUMBER_OF_POWER_SUPPLIES][2];
+
 //---------------------------------------------------------------------------------------------------
 // Function prototypes
 //---------------------------------------------------------------------------------------------------

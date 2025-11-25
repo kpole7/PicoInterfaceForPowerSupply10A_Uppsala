@@ -15,6 +15,8 @@
 
 #define NUMBER_OF_POWER_SUPPLIES		4
 
+#define PHYSICALY_INSTALLED_PSU			2
+
 /// The 1'st PCF8574 address (A0=A1=A2=high)
 #define PCF8574_ADDRESS_2				0x27
 

@@ -53,6 +53,10 @@ volatile bool WritingToDac_IsValidData[NUMBER_OF_POWER_SUPPLIES];
 /// @brief The state of the power contactor: true=power on; false=power off
 bool IsMainContactorStateOn;
 
+/// This array is used to store readings of Sig2 for each channel and
+/// for two DAC values: 0 and FULL_SCALE_IN_DAC_UNITS
+volatile bool Sig2LastReadings[NUMBER_OF_POWER_SUPPLIES][2];
+
 //---------------------------------------------------------------------------------------------------
 // Local variables
 //---------------------------------------------------------------------------------------------------
@@ -77,6 +81,11 @@ static uint32_t WritingToDac_RampDelay[NUMBER_OF_POWER_SUPPLIES];
 /// @return setpoint value for DAC in the present ramp step
 static uint16_t calculateRampStep( uint16_t TargetValue, uint16_t PresentValue );
 
+static void psuFsmStopped(void);
+static void psuFsmTestSig2Low(void);
+static void psuFsmTestSig2High(void);
+static void psuFsmZeroing(void);
+static void psuFsmTurnContactorOn(void);
 static void psuFsmRunning( uint32_t Channel );
 
 //---------------------------------------------------------------------------------------------------
@@ -85,8 +94,12 @@ static void psuFsmRunning( uint32_t Channel );
 
 /// @brief This function initializes the module variables and peripherals.
 void initializePsuTalks(void){
-	atomic_store_explicit( &PsuState, PSU_RUNNING, memory_order_release );
+	atomic_store_explicit( &PsuState, PSU_STOPPED, memory_order_release );
 	IsMainContactorStateOn = INITIAL_MAIN_CONTACTOR_STATE;
+	for (int J = 0; J < NUMBER_OF_POWER_SUPPLIES; J++ ){
+		Sig2LastReadings[J][0] = false; // anything, but defined
+		Sig2LastReadings[J][1] = false;
+	}
 
 	initializeWritingToDacs();
 
@@ -126,23 +139,23 @@ void psuStateMachine( uint32_t Channel ){
 
 	switch( TemporaryPsuState ){
 	case PSU_STOPPED:
-
+		psuFsmStopped();
 		break;
 
 	case PSU_INITIAL_TEST_SIG2_LOW:
-
+		psuFsmTestSig2Low();
 		break;
 
 	case PSU_INITIAL_TEST_SIG2_HIGH:
-
+		psuFsmTestSig2High();
 		break;
 
 	case PSU_INITIAL_ZEROING:
-
+		psuFsmZeroing();
 		break;
 
 	case PSU_INITIAL_CONTACTOR_ON:
-
+		psuFsmTurnContactorOn();
 		break;
 
 	case PSU_RUNNING:
@@ -160,9 +173,117 @@ void psuStateMachine( uint32_t Channel ){
 	default:
 
 	}
+
+#if 1
+	static int OldPsuState;
+	TemporaryPsuState = atomic_load_explicit( &PsuState, memory_order_acquire );
+	if (TemporaryPsuState != OldPsuState){
+		printf( "state %d -> %d\n", OldPsuState, TemporaryPsuState );
+		OldPsuState = TemporaryPsuState;
+	}
+#endif
+}
+
+static void psuFsmStopped(void){
+	assert( INITIAL_MAIN_CONTACTOR_STATE == IsMainContactorStateOn );
+	bool PhysicalValue = gpio_get(GPIO_FOR_POWER_CONTACTOR);
+	assert( false == PhysicalValue );
+	(void)PhysicalValue; // So that the compiler doesn't complain
+
+	// orders
+	int TemporaryOrderCode = atomic_load_explicit( &OrderCode, memory_order_acquire );
+	assert( TemporaryOrderCode < ORDER_COMMAND_ILLEGAL_CODE );
+	assert( TemporaryOrderCode >= ORDER_NONE );
+
+	if (TemporaryOrderCode > ORDER_ACCEPTED){
+		if (ORDER_COMMAND_POWER_UP == TemporaryOrderCode){
+			atomic_store_explicit( &OrderCode, ORDER_ACCEPTED, memory_order_release );
+			atomic_store_explicit( &PsuState, PSU_INITIAL_TEST_SIG2_LOW, memory_order_release );
+		}
+	}
+}
+
+static void psuFsmTestSig2Low(void){
+	assert( INITIAL_MAIN_CONTACTOR_STATE == IsMainContactorStateOn );
+	bool PhysicalValue = gpio_get(GPIO_FOR_POWER_CONTACTOR);
+	assert( false == PhysicalValue );
+	(void)PhysicalValue; // So that the compiler doesn't complain
+
+	// continue preparatory activities for switching on the contactor
+#if SIMULATE_HARDWARE_PSU
+	for (int J=0; J < NUMBER_OF_POWER_SUPPLIES; J++ ){
+#else
+	for (int J=0; J < PHYSICALY_INSTALLED_PSU; J++ ){
+#endif
+		InstantaneousSetpointDacValue[J] = 0;
+		WritingToDac_IsValidData[J] = true;
+		WritingToDac_RampDelay[J] = 0;
+	}
+	atomic_store_explicit( &PsuState, PSU_INITIAL_TEST_SIG2_HIGH, memory_order_release );
+}
+
+static void psuFsmTestSig2High(void){
+	assert( INITIAL_MAIN_CONTACTOR_STATE == IsMainContactorStateOn );
+	bool PhysicalValue = gpio_get(GPIO_FOR_POWER_CONTACTOR);
+	assert( false == PhysicalValue );
+	(void)PhysicalValue; // So that the compiler doesn't complain
+
+#if SIMULATE_HARDWARE_PSU
+	for (int J=0; J < NUMBER_OF_POWER_SUPPLIES; J++ ){
+#else
+	for (int J=0; J < PHYSICALY_INSTALLED_PSU; J++ ){
+#endif
+		InstantaneousSetpointDacValue[J] = FULL_SCALE_IN_DAC_UNITS;
+		WritingToDac_IsValidData[J] = true;
+		WritingToDac_RampDelay[J] = 0;
+	}
+	atomic_store_explicit( &PsuState, PSU_INITIAL_ZEROING, memory_order_release );
+}
+
+static void psuFsmZeroing(void){
+	assert( INITIAL_MAIN_CONTACTOR_STATE == IsMainContactorStateOn );
+	bool PhysicalValue = gpio_get(GPIO_FOR_POWER_CONTACTOR);
+	assert( false == PhysicalValue );
+	(void)PhysicalValue; // So that the compiler doesn't complain
+
+#if SIMULATE_HARDWARE_PSU
+	for (int J=0; J < NUMBER_OF_POWER_SUPPLIES; J++ ){
+#else
+	for (int J=0; J < PHYSICALY_INSTALLED_PSU; J++ ){
+#endif
+		InstantaneousSetpointDacValue[J] = OFFSET_IN_DAC_UNITS;
+		WritingToDac_IsValidData[J] = true;
+		WritingToDac_RampDelay[J] = 0;
+	}
+	atomic_store_explicit( &PsuState, PSU_INITIAL_CONTACTOR_ON, memory_order_release );
+}
+
+static void psuFsmTurnContactorOn(void){
+	assert( INITIAL_MAIN_CONTACTOR_STATE == IsMainContactorStateOn );
+	bool PhysicalValue = gpio_get(GPIO_FOR_POWER_CONTACTOR);
+	assert( false == PhysicalValue );
+	(void)PhysicalValue; // So that the compiler doesn't complain
+
+#if SIMULATE_HARDWARE_PSU
+	for (int J=0; J < NUMBER_OF_POWER_SUPPLIES; J++ ){
+#else
+	for (int J=0; J < PHYSICALY_INSTALLED_PSU; J++ ){
+#endif
+		if (OFFSET_IN_DAC_UNITS != WrittenToDacValue[J]){
+			// something went wrong
+			atomic_store_explicit( &PsuState, PSU_STOPPED, memory_order_release );
+			return;
+		}
+	}
+	atomic_store_explicit( &PsuState, PSU_RUNNING, memory_order_release );
 }
 
 static void psuFsmRunning( uint32_t Channel ){
+	assert( INITIAL_MAIN_CONTACTOR_STATE != IsMainContactorStateOn );
+	bool PhysicalValue = gpio_get(GPIO_FOR_POWER_CONTACTOR);
+	assert( true == PhysicalValue );
+	(void)PhysicalValue;  // So that the compiler doesn't complain
+
 	// orders
 	int TemporaryOrderCode = atomic_load_explicit( &OrderCode, memory_order_acquire );
 	assert( TemporaryOrderCode < ORDER_COMMAND_ILLEGAL_CODE );
@@ -180,6 +301,7 @@ static void psuFsmRunning( uint32_t Channel ){
 			InstantaneousSetpointDacValue[TemporaryUserSelectedChannel] = UserSetpointDacValue[TemporaryUserSelectedChannel];
 			WritingToDac_IsValidData[TemporaryUserSelectedChannel] = true;
 			WritingToDac_RampDelay[Channel] = 0;
+			atomic_store_explicit( &OrderCode, ORDER_ACCEPTED, memory_order_release );
 		}
 
 		if (ORDER_COMMAND_PC == TemporaryOrderCode){
@@ -187,9 +309,8 @@ static void psuFsmRunning( uint32_t Channel ){
 					calculateRampStep( UserSetpointDacValue[TemporaryUserSelectedChannel], WrittenToDacValue[TemporaryUserSelectedChannel] );
 			WritingToDac_IsValidData[TemporaryUserSelectedChannel] = true;
 			WritingToDac_RampDelay[TemporaryUserSelectedChannel] = 0;
+			atomic_store_explicit( &OrderCode, ORDER_ACCEPTED, memory_order_release );
 		}
-
-		atomic_store_explicit( &OrderCode, ORDER_ACCEPTED, memory_order_release );
 	}
 
 	// continuation of ramps

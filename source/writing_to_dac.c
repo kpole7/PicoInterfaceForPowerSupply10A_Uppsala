@@ -161,6 +161,16 @@ void writeToDacStateMachine(void){
 	assert( WritingToDac_Channel < NUMBER_OF_POWER_SUPPLIES );
 	switch( WritingToDac_State ){
 	case WRITING_TO_DAC_INITIALIZE:
+		if (!IsMainContactorStateOn && WritingToDac_IsValidData[WritingToDac_Channel]){
+			// Read Sig2
+			if (0 == WrittenToDacValue[WritingToDac_Channel]){
+				Sig2LastReadings[WritingToDac_Channel][0] = getLogicFeedbackFromPsu();
+			}
+			if (FULL_SCALE_IN_DAC_UNITS == WrittenToDacValue[WritingToDac_Channel]){
+				Sig2LastReadings[WritingToDac_Channel][1] = getLogicFeedbackFromPsu();
+			}
+		}
+
 		gpio_put( GPIO_FOR_NOT_WR_OUTPUT, true );
 
 		psuStateMachine( WritingToDac_Channel );
@@ -227,8 +237,9 @@ void writeToDacStateMachine(void){
 			gpio_put( GPIO_FOR_NOT_WR_OUTPUT, false );
 			WrittenToDacValue[WritingToDac_Channel] = InstantaneousSetpointDacValue[WritingToDac_Channel];
 
+#if 1
 			changeDebugPin1(true);
-			uint32_t DacAddress = decodeDataSentToPcf8574s( &DebugValueWrittenToDac[0], DebugValueWrittenToPCFs );
+			uint32_t DacAddress = decodeDataSentToPcf8574s( &DebugValueWrittenToDac[0], DebugValueWrittenToPCFs ); // just for debugging
 			printf( "%12llu\ti2c\t%d\t%d\t%d\t%d\t%d\n",
 					time_us_64(),
 					WritingToDac_Channel,
@@ -242,6 +253,7 @@ void writeToDacStateMachine(void){
 				printf( "\t INCONSISTENCY INCONSISTENCY INCONSISTENCY!!!\n" );
 			}
 			changeDebugPin1(false);		// measured time = 160 us  (2025-10-19); pulse frequency in the case of ramp execution: 11.4Hz
+#endif
 		}
 		WritingToDac_State = WRITING_TO_DAC_INITIALIZE;
 		break;
