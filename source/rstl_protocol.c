@@ -97,7 +97,54 @@ CommandErrors executeCommand(void){
 		ErrorCode = COMMAND_INCORRECT_FORMAT;
 	}
 
-	if (strstr(NewCommand, "PCXI") == NewCommand){ // "Program current hexadecimal" command
+	if (strstr(NewCommand, "PC") == NewCommand){ // Program Current command
+		float CommandFloatingPointArgument = 22222.2;
+		int16_t ValueInDacUnits = 22222; // value in the case of failure (out of range)
+		ParsingResult = parseFloatArgument( &CommandFloatingPointArgument, NewCommand+3, '\r' );
+		if ((ParsingResult < 0) || (CommadLength != 3+ParsingResult+2 ) ||
+				(NewCommand[CommadLength-2] != '\r') || (NewCommand[CommadLength-1] != '\n'))
+		{
+			ErrorCode = COMMAND_INCORRECT_SYNTAX;
+		}
+		else{
+			if ((CommandFloatingPointArgument < -COMMAND_FLOATING_POINT_VALUE_LIMIT) ||
+					(CommandFloatingPointArgument > COMMAND_FLOATING_POINT_VALUE_LIMIT))
+			{
+				ErrorCode = COMMAND_INCORRECT_ARGUMENT;
+			}
+			else{
+				if (atomic_load_explicit( &OrderCode, memory_order_acquire ) == ORDER_NONE){
+					// essential action
+					ValueInDacUnits = (int16_t)round(CommandFloatingPointArgument * AMPERES_TO_DAC_COEFFICIENT);
+					ValueInDacUnits += OFFSET_IN_DAC_UNITS;
+					if (ValueInDacUnits < 0){
+						ValueInDacUnits = 0;
+					}
+					if (FULL_SCALE_IN_DAC_UNITS < ValueInDacUnits){
+						ValueInDacUnits = FULL_SCALE_IN_DAC_UNITS;
+					}
+					int TemporarySelectedChannel = atomic_load_explicit(&UserSelectedChannel, memory_order_acquire);
+					if (TemporarySelectedChannel < NUMBER_OF_POWER_SUPPLIES){
+						UserSetpointDacValue[TemporarySelectedChannel] = (uint16_t)ValueInDacUnits;
+						RequiredAmperesValue[TemporarySelectedChannel] = CommandFloatingPointArgument;
+					}
+					atomic_store_explicit( &OrderCode, ORDER_COMMAND_PC, memory_order_release );
+					atomic_store_explicit( &OrderChannel, TemporarySelectedChannel, memory_order_release );
+					transmitViaSerialPort(">");
+				}
+				else{
+					ErrorCode = COMMAND_OUT_OF_SERVICE;
+				}
+			}
+		}
+		printf( "%12llu\tPC\t%u\tE=%d\t%d\t0x%04X\n",
+				time_us_64(),
+				(unsigned)atomic_load_explicit(&UserSelectedChannel, memory_order_acquire)+1,
+				ErrorCode,
+				ValueInDacUnits-OFFSET_IN_DAC_UNITS, ValueInDacUnits );
+	}
+#if 0 // service commands
+	else if (strstr(NewCommand, "PCXI") == NewCommand){ // "Program current hexadecimal" command
 		uint16_t DacValue;
 		ParsingResult = parseHexadecimal3DigitsArgument( &DacValue, NewCommand+4, '\r' );
 		if ((ParsingResult < 0) || (CommadLength != 4+ParsingResult+2 ) ||
@@ -179,52 +226,6 @@ CommandErrors executeCommand(void){
 				(unsigned)atomic_load_explicit(&UserSelectedChannel, memory_order_acquire)+1,
 				ValueInDacUnits-OFFSET_IN_DAC_UNITS, ValueInDacUnits );
 	}
-	else if (strstr(NewCommand, "PC") == NewCommand){ // Program Current command
-		float CommandFloatingPointArgument = 22222.2;
-		int16_t ValueInDacUnits = 22222; // value in the case of failure (out of range)
-		ParsingResult = parseFloatArgument( &CommandFloatingPointArgument, NewCommand+3, '\r' );
-		if ((ParsingResult < 0) || (CommadLength != 3+ParsingResult+2 ) ||
-				(NewCommand[CommadLength-2] != '\r') || (NewCommand[CommadLength-1] != '\n'))
-		{
-			ErrorCode = COMMAND_INCORRECT_SYNTAX;
-		}
-		else{
-			if ((CommandFloatingPointArgument < -COMMAND_FLOATING_POINT_VALUE_LIMIT) ||
-					(CommandFloatingPointArgument > COMMAND_FLOATING_POINT_VALUE_LIMIT))
-			{
-				ErrorCode = COMMAND_INCORRECT_ARGUMENT;
-			}
-			else{
-				if (atomic_load_explicit( &OrderCode, memory_order_acquire ) == ORDER_NONE){
-					// essential action
-					ValueInDacUnits = (int16_t)round(CommandFloatingPointArgument * AMPERES_TO_DAC_COEFFICIENT);
-					ValueInDacUnits += OFFSET_IN_DAC_UNITS;
-					if (ValueInDacUnits < 0){
-						ValueInDacUnits = 0;
-					}
-					if (FULL_SCALE_IN_DAC_UNITS < ValueInDacUnits){
-						ValueInDacUnits = FULL_SCALE_IN_DAC_UNITS;
-					}
-					int TemporarySelectedChannel = atomic_load_explicit(&UserSelectedChannel, memory_order_acquire);
-					if (TemporarySelectedChannel < NUMBER_OF_POWER_SUPPLIES){
-						UserSetpointDacValue[TemporarySelectedChannel] = (uint16_t)ValueInDacUnits;
-						RequiredAmperesValue[TemporarySelectedChannel] = CommandFloatingPointArgument;
-					}
-					atomic_store_explicit( &OrderCode, ORDER_COMMAND_PC, memory_order_release );
-					atomic_store_explicit( &OrderChannel, TemporarySelectedChannel, memory_order_release );
-					transmitViaSerialPort(">");
-				}
-				else{
-					ErrorCode = COMMAND_OUT_OF_SERVICE;
-				}
-			}
-		}
-		printf( "%12llu\tPC\t%u\tE=%d\t%d\t0x%04X\n",
-				time_us_64(),
-				(unsigned)atomic_load_explicit(&UserSelectedChannel, memory_order_acquire)+1,
-				ErrorCode,
-				ValueInDacUnits-OFFSET_IN_DAC_UNITS, ValueInDacUnits );
-	}
 	else if (strstr(NewCommand, "?PCI") == NewCommand){ // "Get set-point value of current" command
 		if ((NewCommand[CommadLength-2] != '\r') || (NewCommand[CommadLength-1] != '\n')){
 			ErrorCode = COMMAND_INCORRECT_SYNTAX;
@@ -239,6 +240,7 @@ CommandErrors executeCommand(void){
 				(unsigned)atomic_load_explicit(&UserSelectedChannel, memory_order_acquire)+1,
 				UserSetpointDacValue[atomic_load_explicit(&UserSelectedChannel, memory_order_acquire)] );
 	}
+#endif
 	else if (strstr(NewCommand, "?PC") == NewCommand){ // "Get set-point value of current" command
 		if ((NewCommand[CommadLength-2] != '\r') || (NewCommand[CommadLength-1] != '\n')){
 			ErrorCode = COMMAND_INCORRECT_SYNTAX;
@@ -287,6 +289,7 @@ CommandErrors executeCommand(void){
 		printf( "cmd ?Z\tE=%d\tch=%u\n", ErrorCode,
 				(unsigned)atomic_load_explicit(&UserSelectedChannel, memory_order_acquire)+1 );
 	}
+#if 0 // service commands
 	else if (strstr(NewCommand, "PWR") == NewCommand){ // "Switch power on/off" command
 		uint8_t TemporaryPowerArgument;
 		ParsingResult = parseOneDigitArgument( &TemporaryPowerArgument, NewCommand+5, '\r' );
@@ -320,6 +323,7 @@ CommandErrors executeCommand(void){
 					(unsigned)atomic_load_explicit(&UserSelectedChannel, memory_order_acquire)+1 );
 		}
 	}
+#endif
 	else if (strstr(NewCommand, "POWER") == NewCommand){ // "Switch power on/off" command
 		uint8_t TemporaryPowerArgument;
 		ParsingResult = parseOneDigitArgument( &TemporaryPowerArgument, NewCommand+5, '\r' );
@@ -359,6 +363,7 @@ CommandErrors executeCommand(void){
 		}
 		printf( "cmd pow %d\tE=%d\n", TemporaryPowerArgument, ErrorCode );
 	}
+#if 0 // service commands
 	else if (strstr(NewCommand, "?PWR") == NewCommand){ // "Get state of power switch" command
 		if ((NewCommand[CommadLength-2] != '\r') || (NewCommand[CommadLength-1] != '\n')){
 			ErrorCode = COMMAND_INCORRECT_SYNTAX;
@@ -381,6 +386,7 @@ CommandErrors executeCommand(void){
 					(unsigned)atomic_load_explicit(&UserSelectedChannel, memory_order_acquire)+1 );
 		}
 	}
+#endif
 	else if (strstr(NewCommand, "MC") == NewCommand){ // "Measure current" command
 		if ((NewCommand[CommadLength-2] != '\r') || (NewCommand[CommadLength-1] != '\n')){
 			ErrorCode = COMMAND_INCORRECT_SYNTAX;
