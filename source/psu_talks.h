@@ -11,12 +11,6 @@
 #include "rstl_protocol.h"
 
 //---------------------------------------------------------------------------------------------------
-// Macro directives
-//---------------------------------------------------------------------------------------------------
-
-#define INITIAL_MAIN_CONTACTOR_STATE	false
-
-//---------------------------------------------------------------------------------------------------
 // Global constants
 //---------------------------------------------------------------------------------------------------
 
@@ -31,6 +25,7 @@ typedef enum {
 	PSU_RUNNING,
 	PSU_SHUTTING_DOWN_ZEROING,
 	PSU_SHUTTING_DOWN_CONTACTOR_OFF,
+	PSU_ILLEGAL_STATE
 }PsuOperatingStates;
 
 //---------------------------------------------------------------------------------------------------
@@ -52,7 +47,7 @@ extern volatile uint16_t WrittenToDacValue[NUMBER_OF_POWER_SUPPLIES];
 extern volatile bool WritingToDac_IsValidData[NUMBER_OF_POWER_SUPPLIES];
 
 /// @brief The state of the power contactor: true=power on; false=power off
-extern bool IsMainContactorStateOn;
+extern atomic_bool IsMainContactorStateOn;
 
 /// This array is used to store readings of Sig2 for each channel and
 /// for two DAC values: 0 and FULL_SCALE_IN_DAC_UNITS
@@ -66,7 +61,7 @@ extern volatile bool Sig2LastReadings[NUMBER_OF_POWER_SUPPLIES][2];
 void initializePsuTalks(void);
 
 /// @brief This function changes the power contactor state
-void setMainContactorState( bool IsMainContactorStateOn );
+void setMainContactorState( bool NewState );
 
 /// @brief This function reads the logical state of the signal marked as "Sig2" in the diagram
 bool getLogicFeedbackFromPsu( void );

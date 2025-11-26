@@ -161,8 +161,11 @@ void writeToDacStateMachine(void){
 	assert( WritingToDac_Channel < NUMBER_OF_POWER_SUPPLIES );
 	switch( WritingToDac_State ){
 	case WRITING_TO_DAC_INITIALIZE:
-		if (!IsMainContactorStateOn && WritingToDac_IsValidData[WritingToDac_Channel]){
-			// Read Sig2
+
+		// Sig2 signal handling
+		if (!atomic_load_explicit( &IsMainContactorStateOn, memory_order_acquire ) &&
+				WritingToDac_IsValidData[WritingToDac_Channel])
+		{
 			if (0 == WrittenToDacValue[WritingToDac_Channel]){
 				Sig2LastReadings[WritingToDac_Channel][0] = getLogicFeedbackFromPsu();
 			}
@@ -171,10 +174,13 @@ void writeToDacStateMachine(void){
 			}
 		}
 
+		// eventual completion of the writing cycle
 		gpio_put( GPIO_FOR_NOT_WR_OUTPUT, true );
 
+		// State machine on the upper layer of software
 		bool SynchronizeChannels = psuStateMachine( WritingToDac_Channel );
 
+		// Switch to the next channel and prepare for the next cycle
 		if (SynchronizeChannels){
 			WritingToDac_Channel = 0;
 		}
@@ -184,7 +190,6 @@ void writeToDacStateMachine(void){
 				WritingToDac_Channel = 0;
 			}
 		}
-
 		if (WritingToDac_IsValidData[WritingToDac_Channel]){
 			WorkingDataForTwoPcf8574 = prepareDataForTwoPcf8574( InstantaneousSetpointDacValue[WritingToDac_Channel], AddressTable[WritingToDac_Channel] );
 		}

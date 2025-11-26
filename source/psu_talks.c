@@ -51,7 +51,7 @@ volatile uint16_t WrittenToDacValue[NUMBER_OF_POWER_SUPPLIES];
 volatile bool WritingToDac_IsValidData[NUMBER_OF_POWER_SUPPLIES];
 
 /// @brief The state of the power contactor: true=power on; false=power off
-bool IsMainContactorStateOn;
+atomic_bool IsMainContactorStateOn;
 
 /// This array is used to store readings of Sig2 for each channel and
 /// for two DAC values: 0 and FULL_SCALE_IN_DAC_UNITS
@@ -97,7 +97,7 @@ static bool psuFsmShutingDownSwitchOff(void);
 /// @brief This function initializes the module variables and peripherals.
 void initializePsuTalks(void){
 	atomic_store_explicit( &PsuState, PSU_STOPPED, memory_order_release );
-	IsMainContactorStateOn = INITIAL_MAIN_CONTACTOR_STATE;
+	atomic_store_explicit( &IsMainContactorStateOn, false, memory_order_release );
 	for (int J = 0; J < NUMBER_OF_POWER_SUPPLIES; J++ ){
 		Sig2LastReadings[J][0] = false; // anything, but defined
 		Sig2LastReadings[J][1] = false;
@@ -106,7 +106,7 @@ void initializePsuTalks(void){
 	initializeWritingToDacs();
 
     gpio_init(GPIO_FOR_POWER_CONTACTOR);
-    gpio_put(GPIO_FOR_POWER_CONTACTOR, INITIAL_MAIN_CONTACTOR_STATE);
+    gpio_put(GPIO_FOR_POWER_CONTACTOR, false);
     gpio_set_dir(GPIO_FOR_POWER_CONTACTOR, true);  // true = output
     gpio_set_drive_strength(GPIO_FOR_POWER_CONTACTOR, GPIO_DRIVE_STRENGTH_12MA);
 
@@ -139,6 +139,7 @@ bool psuStateMachine( uint32_t Channel ){
 	assert( Channel < NUMBER_OF_POWER_SUPPLIES );
 
 	int TemporaryPsuState = atomic_load_explicit( &PsuState, memory_order_acquire );
+	assert( TemporaryPsuState < PSU_ILLEGAL_STATE );
 
 	switch( TemporaryPsuState ){
 	case PSU_STOPPED:
@@ -197,7 +198,7 @@ bool psuStateMachine( uint32_t Channel ){
 }
 
 static bool psuFsmStopped(void){
-	assert( INITIAL_MAIN_CONTACTOR_STATE == IsMainContactorStateOn );
+	assert( false == atomic_load_explicit( &IsMainContactorStateOn, memory_order_acquire ));
 	bool PhysicalValue = gpio_get(GPIO_FOR_POWER_CONTACTOR);
 	assert( false == PhysicalValue );
 	(void)PhysicalValue; // So that the compiler doesn't complain
@@ -220,7 +221,7 @@ static bool psuFsmStopped(void){
 }
 
 static bool psuFsmTestSig2Low(void){
-	assert( INITIAL_MAIN_CONTACTOR_STATE == IsMainContactorStateOn );
+	assert( false == atomic_load_explicit( &IsMainContactorStateOn, memory_order_acquire ));
 	bool PhysicalValue = gpio_get(GPIO_FOR_POWER_CONTACTOR);
 	assert( false == PhysicalValue );
 	(void)PhysicalValue; // So that the compiler doesn't complain
@@ -236,7 +237,7 @@ static bool psuFsmTestSig2Low(void){
 }
 
 static bool psuFsmTestSig2High(void){
-	assert( INITIAL_MAIN_CONTACTOR_STATE == IsMainContactorStateOn );
+	assert( false == atomic_load_explicit( &IsMainContactorStateOn, memory_order_acquire ));
 	bool PhysicalValue = gpio_get(GPIO_FOR_POWER_CONTACTOR);
 	assert( false == PhysicalValue );
 	(void)PhysicalValue; // So that the compiler doesn't complain
@@ -251,7 +252,7 @@ static bool psuFsmTestSig2High(void){
 }
 
 static bool psuFsmZeroing(){
-	assert( INITIAL_MAIN_CONTACTOR_STATE == IsMainContactorStateOn );
+	assert( false == atomic_load_explicit( &IsMainContactorStateOn, memory_order_acquire ));
 	bool PhysicalValue = gpio_get(GPIO_FOR_POWER_CONTACTOR);
 	assert( false == PhysicalValue );
 	(void)PhysicalValue; // So that the compiler doesn't complain
@@ -266,7 +267,7 @@ static bool psuFsmZeroing(){
 }
 
 static bool psuFsmTurnContactorOn(void){
-	assert( INITIAL_MAIN_CONTACTOR_STATE == IsMainContactorStateOn );
+	assert( false == atomic_load_explicit( &IsMainContactorStateOn, memory_order_acquire ));
 	bool PhysicalValue = gpio_get(GPIO_FOR_POWER_CONTACTOR);
 	assert( false == PhysicalValue );
 	(void)PhysicalValue; // So that the compiler doesn't complain
@@ -291,8 +292,8 @@ static bool psuFsmTurnContactorOn(void){
 			return true;
 		}
 	}
-	IsMainContactorStateOn = true;
-	setMainContactorState( IsMainContactorStateOn );
+	atomic_store_explicit( &IsMainContactorStateOn, true, memory_order_release );
+	setMainContactorState( true );
 
 	printf("main contactor switched on\n");
 
@@ -301,7 +302,7 @@ static bool psuFsmTurnContactorOn(void){
 }
 
 static bool psuFsmRunning( uint32_t Channel ){
-	assert( INITIAL_MAIN_CONTACTOR_STATE != IsMainContactorStateOn );
+	assert( true == atomic_load_explicit( &IsMainContactorStateOn, memory_order_acquire ));
 	bool PhysicalValue = gpio_get(GPIO_FOR_POWER_CONTACTOR);
 	assert( true == PhysicalValue );
 	(void)PhysicalValue;  // So that the compiler doesn't complain
@@ -336,6 +337,7 @@ static bool psuFsmRunning( uint32_t Channel ){
 
 		if (ORDER_COMMAND_POWER_DOWN == TemporaryOrderCode){
 			for (int J = 0; J < NUMBER_OF_INSTALLED_PSU; J++ ){
+				UserSetpointDacValue[J] = OFFSET_IN_DAC_UNITS;
 				InstantaneousSetpointDacValue[J] = calculateRampStep( OFFSET_IN_DAC_UNITS, WrittenToDacValue[J] );
 				WritingToDac_IsValidData[J] = true;
 				WritingToDac_RampDelay[J] = 0;
@@ -378,7 +380,7 @@ static bool psuFsmRunning( uint32_t Channel ){
 }
 
 static bool psuFsmShutingDownZeroing( uint32_t Channel ){
-	assert( INITIAL_MAIN_CONTACTOR_STATE != IsMainContactorStateOn );
+	assert( true == atomic_load_explicit( &IsMainContactorStateOn, memory_order_acquire ));
 	bool PhysicalValue = gpio_get(GPIO_FOR_POWER_CONTACTOR);
 	assert( true == PhysicalValue );
 	(void)PhysicalValue;  // So that the compiler doesn't complain
@@ -419,13 +421,13 @@ static bool psuFsmShutingDownZeroing( uint32_t Channel ){
 }
 
 static bool psuFsmShutingDownSwitchOff(void){
-	assert( INITIAL_MAIN_CONTACTOR_STATE != IsMainContactorStateOn );
+	assert( true == atomic_load_explicit( &IsMainContactorStateOn, memory_order_acquire ));
 	bool PhysicalValue = gpio_get(GPIO_FOR_POWER_CONTACTOR);
 	assert( true == PhysicalValue );
 	(void)PhysicalValue;  // So that the compiler doesn't complain
 
-	IsMainContactorStateOn = false;
-	setMainContactorState( IsMainContactorStateOn );
+	atomic_store_explicit( &IsMainContactorStateOn, false, memory_order_release );
+	setMainContactorState( false );
 
 	printf("main contactor switched off\n");
 
