@@ -11,6 +11,15 @@
 #include "config.h"
 
 //---------------------------------------------------------------------------------------------------
+// global variables
+//---------------------------------------------------------------------------------------------------
+
+/// @brief This variable is used to monitor the I2C devices.
+/// This flag is set if the number of consecutive errors exceeds the I2C_ERRORS_DISPLAY_LIMIT limit,
+/// and cleared after the message is printed.
+extern atomic_bool I2cErrorsDisplay;
+
+//---------------------------------------------------------------------------------------------------
 // Function prototypes
 //---------------------------------------------------------------------------------------------------
 

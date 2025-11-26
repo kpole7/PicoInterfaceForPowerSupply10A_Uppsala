@@ -19,7 +19,9 @@
 
 #define GPIO_FOR_NOT_WR_OUTPUT			10
 
-#define I2C_CONSECUTIVE_ERRORS_LIMIT	10
+#define I2C_CONSECUTIVE_ERRORS_LIMIT	100
+
+#define I2C_ERRORS_DISPLAY_LIMIT		5
 
 //---------------------------------------------------------------------------------------------------
 // Local constants
@@ -71,6 +73,15 @@ static const uint8_t AddressTable[NUMBER_OF_POWER_SUPPLIES] = {
 	};
 
 //---------------------------------------------------------------------------------------------------
+// global variables
+//---------------------------------------------------------------------------------------------------
+
+/// @brief This variable is used to monitor the I2C devices.
+/// This flag is set if the number of consecutive errors exceeds the I2C_ERRORS_DISPLAY_LIMIT limit,
+/// and cleared after the message is printed.
+atomic_bool I2cErrorsDisplay;
+
+//---------------------------------------------------------------------------------------------------
 // Local variables
 //---------------------------------------------------------------------------------------------------
 
@@ -80,11 +91,15 @@ static volatile WritingToDacStates WritingToDac_State;
 /// @brief This variable is used in a simple state machine
 static volatile uint32_t WritingToDac_Channel;
 
-/// @brief This variable is used to monitor the I2C devices
-/// @todo exception handling
+/// @brief This variable is used to monitor the I2C devices.
+/// This is the instantaneous value of the length of the i2c hardware error sequence.
 static atomic_int I2cConsecutiveErrors;
 
-//---------------------------------------------------------------------------------------------------
+/// @brief This variable is used to monitor the I2C devices.
+/// This is the longest recorded length of i2c hardware error sequences.
+static atomic_int I2cMaxConsecutiveErrors;
+
+///---------------------------------------------------------------------------------------------------
 // Function prototypes
 //---------------------------------------------------------------------------------------------------
 
@@ -148,6 +163,8 @@ void initializeWritingToDacs(void){
 	}
 	WritingToDac_State = WRITING_TO_DAC_INITIALIZE;
 	atomic_store_explicit( &I2cConsecutiveErrors, 0, memory_order_release );
+	atomic_store_explicit( &I2cMaxConsecutiveErrors, 0, memory_order_release );
+	atomic_store_explicit( &I2cErrorsDisplay, false, memory_order_release );
 }
 
 /// @brief This function provides DAC write support for all power supplies
@@ -269,8 +286,20 @@ void writeToDacStateMachine(void){
 		break;
 
 	case WRITING_TO_DAC_FAILURE:
+		int TemporaryI2cErrors = atomic_load_explicit( &I2cConsecutiveErrors, memory_order_acquire );
+		if (atomic_load_explicit( &I2cMaxConsecutiveErrors, memory_order_acquire ) < TemporaryI2cErrors){
+			atomic_store_explicit( &I2cMaxConsecutiveErrors, TemporaryI2cErrors, memory_order_release );
+		}
 
-		// todo Exception handling
+		if (I2C_ERRORS_DISPLAY_LIMIT+1 == TemporaryI2cErrors){
+			atomic_store_explicit( &I2cErrorsDisplay, true, memory_order_release );
+		}
+
+		printf( "%12llu\tI2C ERRORS=%d\tch=%d\tval=%d\n",
+				time_us_64(),
+				TemporaryI2cErrors,
+				WritingToDac_Channel,
+				WrittenToDacValue[WritingToDac_Channel]-OFFSET_IN_DAC_UNITS );
 
 		WritingToDac_State = WRITING_TO_DAC_INITIALIZE;
 		break;

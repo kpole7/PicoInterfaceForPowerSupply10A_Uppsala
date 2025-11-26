@@ -46,17 +46,21 @@ bool i2cWrite( uint8_t I2cAddress, uint8_t Value) {
 	int Result = i2c_write_timeout_us( I2C_PORT, I2cAddress, &Value, 1, false, 600 );
 
 #else
+	// debugging
 
     for (volatile uint32_t DebugCounter = 0; DebugCounter < 5000; DebugCounter++) {
         __asm volatile("nop");
 	}
 	int Result = 1;
 
+	if ( !getPushButtonState() ){
+		Result = 0;
+	}
 #endif
 
 	changeDebugPin2(false); // measured time = 420 us;  2025-10-30
 
-#if 1
+#if 1 // debugging
 	if (PCF8574_ADDRESS_1 == I2cAddress){
 		DebugValueWrittenToPCFs &= 0x00FFu;
 	}
@@ -67,7 +71,7 @@ bool i2cWrite( uint8_t I2cAddress, uint8_t Value) {
 
 	if (1 == Result){
 
-#if 1
+#if 1 // debugging
 		if (PCF8574_ADDRESS_1 == I2cAddress){
 			DebugValueWrittenToPCFs |= ((uint16_t)Value << 8);
 		}
