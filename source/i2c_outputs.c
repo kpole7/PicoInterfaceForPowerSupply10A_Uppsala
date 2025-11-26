@@ -41,11 +41,7 @@ bool i2cWrite( uint8_t I2cAddress, uint8_t Value) {
 
 	changeDebugPin2(true);
 
-#if SIMULATE_HARDWARE_PSU == 0
-
-	int Result = i2c_write_timeout_us( I2C_PORT, I2cAddress, &Value, 1, false, 600 );
-
-#else
+#if SIMULATE_HARDWARE_PSU == 1
 	// debugging
 
     for (volatile uint32_t DebugCounter = 0; DebugCounter < 5000; DebugCounter++) {
@@ -53,9 +49,21 @@ bool i2cWrite( uint8_t I2cAddress, uint8_t Value) {
 	}
 	int Result = 1;
 
-	if ( !getPushButtonState() ){
+	if ( !getPushButtonState() && (0 == DebugCounter1)){
 		Result = 0;
+		DebugCounter1 = 200;
+		DebugCounter2 = 7;
 	}
+	else{
+		if (0 != DebugCounter2){
+			Result = 0;
+			DebugCounter2--;
+		}
+	}
+#else
+
+	int Result = i2c_write_timeout_us( I2C_PORT, I2cAddress, &Value, 1, false, 600 );
+
 #endif
 
 	changeDebugPin2(false); // measured time = 420 us;  2025-10-30

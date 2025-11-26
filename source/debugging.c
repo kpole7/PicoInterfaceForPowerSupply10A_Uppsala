@@ -16,7 +16,7 @@
 #define GPIO_FOR_DEBUG_PIN_2	14
 
 
-uint16_t DebugValueWrittenToPCFs, DebugValueWrittenToDac[NUMBER_OF_POWER_SUPPLIES];
+uint16_t DebugValueWrittenToPCFs, DebugValueWrittenToDac[NUMBER_OF_POWER_SUPPLIES], DebugCounter1, DebugCounter2;
 
 //---------------------------------------------------------------------------------------------------
 // Function definitions
@@ -32,6 +32,9 @@ void initializeDebugDevices(void){
 
 	gpio_init(GPIO_FOR_DEBUG_PIN_2);
 	gpio_set_dir(GPIO_FOR_DEBUG_PIN_2, GPIO_OUT);
+
+	DebugCounter1 = 0;
+	DebugCounter2 = 0;
 }
 
 bool getPushButtonState(void){

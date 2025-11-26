@@ -13,7 +13,7 @@
 // Global variables
 //---------------------------------------------------------------------------------------------------
 
-extern uint16_t DebugValueWrittenToPCFs, DebugValueWrittenToDac[NUMBER_OF_POWER_SUPPLIES];
+extern uint16_t DebugValueWrittenToPCFs, DebugValueWrittenToDac[NUMBER_OF_POWER_SUPPLIES], DebugCounter1, DebugCounter2;
 
 //---------------------------------------------------------------------------------------------------
 // Function prototypes

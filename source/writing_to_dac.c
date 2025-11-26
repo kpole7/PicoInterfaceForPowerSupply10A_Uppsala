@@ -172,6 +172,11 @@ void initializeWritingToDacs(void){
 /// which allows them to operate simultaneously. All state machines are identical.
 /// This function is called periodically by the time interrupt handler.
 void writeToDacStateMachine(void){
+
+	if (DebugCounter1 > 0){
+		DebugCounter1--;
+	}
+
 	static uint16_t WorkingDataForTwoPcf8574;
 	bool IsI2cSuccess;
 
@@ -226,9 +231,7 @@ void writeToDacStateMachine(void){
 				if (atomic_load_explicit( &I2cConsecutiveErrors, memory_order_acquire ) < I2C_CONSECUTIVE_ERRORS_LIMIT){
 					atomic_fetch_add_explicit( &I2cConsecutiveErrors, 1, memory_order_acq_rel );
 				}
-				else{
-					WritingToDac_State = WRITING_TO_DAC_FAILURE;
-				}
+				WritingToDac_State = WRITING_TO_DAC_FAILURE;
 			}
 		}
 		else{
@@ -248,9 +251,7 @@ void writeToDacStateMachine(void){
 				if (atomic_load_explicit( &I2cConsecutiveErrors, memory_order_acquire ) < I2C_CONSECUTIVE_ERRORS_LIMIT){
 					atomic_fetch_add_explicit( &I2cConsecutiveErrors, 1, memory_order_acq_rel );
 				}
-				else{
-					WritingToDac_State = WRITING_TO_DAC_FAILURE;
-				}
+				WritingToDac_State = WRITING_TO_DAC_FAILURE;
 			}
 		}
 		else{
@@ -295,13 +296,13 @@ void writeToDacStateMachine(void){
 			atomic_store_explicit( &I2cErrorsDisplay, true, memory_order_release );
 		}
 
-		printf( "%12llu\tI2C ERRORS=%d\tch=%d\tval=%d\n",
+#if 1
+		printf( "%12llu\tI2C ERR=%d\t%d\n",
 				time_us_64(),
 				TemporaryI2cErrors,
-				WritingToDac_Channel,
-				WrittenToDacValue[WritingToDac_Channel]-OFFSET_IN_DAC_UNITS );
-
-		WritingToDac_State = WRITING_TO_DAC_INITIALIZE;
+				atomic_load_explicit( &I2cMaxConsecutiveErrors, memory_order_acquire ));
+#endif
+		WritingToDac_State = WRITING_TO_DAC_SEND_1ST_BYTE;
 		break;
 
 	default:

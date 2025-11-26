@@ -17,6 +17,11 @@
 
 #define PHYSICALLY_INSTALLED_PSU		2
 
+/// Since this interface is a slave, it should not send any messages on its own, but only respond to commands.
+/// An exception may be made in the case of critical errors. If this directive has a value of 1,
+/// i2c error messages will be sent without prompting.
+#define SEND_I2C_ERROR_MESSAGE_ASYNCHRONOUSLY	1
+
 /// The 1'st PCF8574 address (A0=A1=A2=high)
 #define PCF8574_ADDRESS_2				0x27
 

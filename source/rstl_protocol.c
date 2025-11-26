@@ -70,12 +70,12 @@ void initializeRstlProtocol(void){
 
 /// @brief This function is called in the main loop
 void driveUserInterface(void){
-
+#if SEND_I2C_ERROR_MESSAGE_ASYNCHRONICALLY == 1
 	if (atomic_load_explicit( &I2cErrorsDisplay, memory_order_acquire )){
 		atomic_store_explicit( &I2cErrorsDisplay, false, memory_order_release );
 		transmitViaSerialPort("\r\nI2C ERROR !\r\n>");
 	}
-
+#endif
 	if (atomic_load_explicit( &OrderCode, memory_order_acquire ) == ORDER_ACCEPTED){
 		atomic_store_explicit( &OrderCode, ORDER_NONE, memory_order_release );
 	}
