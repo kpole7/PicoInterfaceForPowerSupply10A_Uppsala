@@ -19,6 +19,14 @@
 /// and cleared after the message is printed.
 extern atomic_bool I2cErrorsDisplay;
 
+/// @brief This variable is used to monitor the I2C devices.
+/// This is the instantaneous value of the length of the i2c hardware error sequence.
+extern atomic_int I2cConsecutiveErrors;
+
+/// @brief This variable is used to monitor the I2C devices.
+/// This is the longest recorded length of i2c hardware error sequences.
+extern atomic_int I2cMaxConsecutiveErrors;
+
 //---------------------------------------------------------------------------------------------------
 // Function prototypes
 //---------------------------------------------------------------------------------------------------

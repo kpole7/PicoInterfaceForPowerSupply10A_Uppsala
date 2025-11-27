@@ -11,6 +11,15 @@
 #include "rstl_protocol.h"
 
 //---------------------------------------------------------------------------------------------------
+// Macro directives
+//---------------------------------------------------------------------------------------------------
+
+#define SIG2_FOR_0_DAC_SETTING			0
+#define SIG2_FOR_FULL_SCALE_DAC_SETTING	1
+#define SIG2_IS_VALID_INFORMATION		2
+#define SIG2_RECORD_SIZE				3
+
+//---------------------------------------------------------------------------------------------------
 // Global constants
 //---------------------------------------------------------------------------------------------------
 
@@ -50,8 +59,8 @@ extern volatile bool WritingToDac_IsValidData[NUMBER_OF_POWER_SUPPLIES];
 extern atomic_bool IsMainContactorStateOn;
 
 /// This array is used to store readings of Sig2 for each channel and
-/// for two DAC values: 0 and FULL_SCALE_IN_DAC_UNITS
-extern volatile bool Sig2LastReadings[NUMBER_OF_POWER_SUPPLIES][2];
+/// for two DAC values: 0 and FULL_SCALE_IN_DAC_UNITS; additionally, a flag is used to indicate that the data is valid
+extern volatile bool Sig2LastReadings[NUMBER_OF_POWER_SUPPLIES][SIG2_RECORD_SIZE];
 
 //---------------------------------------------------------------------------------------------------
 // Function prototypes
@@ -70,5 +79,8 @@ bool getLogicFeedbackFromPsu( void );
 /// @param Channel channel served in the last cycle
 /// @return synchronize channels
 bool psuStateMachine( uint32_t Channel );
+
+/// This function prepares information on Sig2 readings in text form
+char* convertSig2TableToText(void);
 
 #endif // SOURCE_PSU_TALKS_H_

@@ -70,7 +70,7 @@ void initializeRstlProtocol(void){
 
 /// @brief This function is called in the main loop
 void driveUserInterface(void){
-#if SEND_I2C_ERROR_MESSAGE_ASYNCHRONICALLY == 1
+#if SEND_I2C_ERROR_MESSAGE_ASYNCHRONOUSLY == 1
 	if (atomic_load_explicit( &I2cErrorsDisplay, memory_order_acquire )){
 		atomic_store_explicit( &I2cErrorsDisplay, false, memory_order_release );
 		transmitViaSerialPort("\r\nI2C ERROR !\r\n>");
@@ -90,7 +90,7 @@ void driveUserInterface(void){
 /// @todo exception handling
 CommandErrors executeCommand(void){
 	char ResponseBuffer[LONGEST_RESPONSE_LENGTH];
-	CommandErrors ErrorCode = COMMAND_GOOD;
+	CommandErrors ErrorCode = COMMAND_PROPER;
 	int32_t ParsingResult = 0;
 	int CommadLength = strlen( NewCommand );
 
@@ -355,6 +355,7 @@ CommandErrors executeCommand(void){
 		printf( "cmd MC\tE=%d\tch=%u\n", ErrorCode,
 				(unsigned)atomic_load_explicit(&UserSelectedChannel, memory_order_acquire)+1 );
 	}
+#if 0 // service commands
 	else if (strstr(NewCommand, "MY") == NewCommand){ // "Get Sig2 value" command
 		bool Sig2Value = false;
 		if ((CommadLength != 2+2) || (NewCommand[CommadLength-2] != '\r') || (NewCommand[CommadLength-1] != '\n')){
@@ -373,6 +374,7 @@ CommandErrors executeCommand(void){
 		printf( "cmd MY\tE=%d\tch=%u\tSig2=%c\n", ErrorCode,
 				(unsigned)atomic_load_explicit(&UserSelectedChannel, memory_order_acquire)+1, Sig2Value? '1':'0' );
 	}
+#endif
 	else if (strstr(NewCommand, "VERSION") == NewCommand){ // "Get info about the current version" command
 		if ((CommadLength != 7+2) || (NewCommand[CommadLength-2] != '\r') || (NewCommand[CommadLength-1] != '\n')){
 			ErrorCode = COMMAND_INCORRECT_SYNTAX;
@@ -386,6 +388,24 @@ CommandErrors executeCommand(void){
 				(unsigned)atomic_load_explicit(&UserSelectedChannel, memory_order_acquire)+1,
 				CompilationTime );
 	}
+	else if (strstr(NewCommand, "ST") == NewCommand){ // "Get Status" command
+		if ((CommadLength != 2+2) || (NewCommand[CommadLength-2] != '\r') || (NewCommand[CommadLength-1] != '\n')){
+			ErrorCode = COMMAND_INCORRECT_SYNTAX;
+		}
+		else{
+			// essential action
+			static const char TemporaryDescription1[] = "ON";
+			static const char TemporaryDescription2[] = "OFF";
+			snprintf( ResponseBuffer, COMMAND_BUFFER_LENGTH-1, "err %d i2c %d %d pwr %s sig2%s\r\n>",
+					ErrorCode,
+					atomic_load_explicit(&I2cConsecutiveErrors, memory_order_acquire),
+					atomic_load_explicit(&I2cMaxConsecutiveErrors, memory_order_acquire),
+					atomic_load_explicit( &IsMainContactorStateOn, memory_order_acquire ) ? TemporaryDescription1 : TemporaryDescription2,
+					convertSig2TableToText() );
+			transmitViaSerialPort( ResponseBuffer );
+		}
+		printf( "cmd st\n" );
+	}
 	else{
 		ErrorCode = COMMAND_UNKNOWN;
 		printf( "cmd ???\t" );
@@ -394,7 +414,7 @@ CommandErrors executeCommand(void){
 		}
 		printf( "\n" );
 	}
-	if (COMMAND_GOOD != ErrorCode){
+	if (COMMAND_PROPER != ErrorCode){
 		snprintf( ResponseBuffer, COMMAND_BUFFER_LENGTH-1, "Error %d\r\n>", ErrorCode );
 		transmitViaSerialPort( ResponseBuffer );
 	}

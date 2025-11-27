@@ -81,6 +81,14 @@ static const uint8_t AddressTable[NUMBER_OF_POWER_SUPPLIES] = {
 /// and cleared after the message is printed.
 atomic_bool I2cErrorsDisplay;
 
+/// @brief This variable is used to monitor the I2C devices.
+/// This is the instantaneous value of the length of the i2c hardware error sequence.
+atomic_int I2cConsecutiveErrors;
+
+/// @brief This variable is used to monitor the I2C devices.
+/// This is the longest recorded length of i2c hardware error sequences.
+atomic_int I2cMaxConsecutiveErrors;
+
 //---------------------------------------------------------------------------------------------------
 // Local variables
 //---------------------------------------------------------------------------------------------------
@@ -90,14 +98,6 @@ static volatile WritingToDacStates WritingToDac_State;
 
 /// @brief This variable is used in a simple state machine
 static volatile uint32_t WritingToDac_Channel;
-
-/// @brief This variable is used to monitor the I2C devices.
-/// This is the instantaneous value of the length of the i2c hardware error sequence.
-static atomic_int I2cConsecutiveErrors;
-
-/// @brief This variable is used to monitor the I2C devices.
-/// This is the longest recorded length of i2c hardware error sequences.
-static atomic_int I2cMaxConsecutiveErrors;
 
 ///---------------------------------------------------------------------------------------------------
 // Function prototypes
@@ -189,10 +189,11 @@ void writeToDacStateMachine(void){
 				WritingToDac_IsValidData[WritingToDac_Channel])
 		{
 			if (0 == WrittenToDacValue[WritingToDac_Channel]){
-				Sig2LastReadings[WritingToDac_Channel][0] = getLogicFeedbackFromPsu();
+				Sig2LastReadings[WritingToDac_Channel][SIG2_FOR_0_DAC_SETTING] = getLogicFeedbackFromPsu();
 			}
 			if (FULL_SCALE_IN_DAC_UNITS == WrittenToDacValue[WritingToDac_Channel]){
-				Sig2LastReadings[WritingToDac_Channel][1] = getLogicFeedbackFromPsu();
+				Sig2LastReadings[WritingToDac_Channel][SIG2_FOR_FULL_SCALE_DAC_SETTING] = getLogicFeedbackFromPsu();
+				Sig2LastReadings[WritingToDac_Channel][SIG2_IS_VALID_INFORMATION] = true;
 			}
 		}
 

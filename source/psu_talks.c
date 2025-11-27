@@ -54,8 +54,8 @@ volatile bool WritingToDac_IsValidData[NUMBER_OF_POWER_SUPPLIES];
 atomic_bool IsMainContactorStateOn;
 
 /// This array is used to store readings of Sig2 for each channel and
-/// for two DAC values: 0 and FULL_SCALE_IN_DAC_UNITS
-volatile bool Sig2LastReadings[NUMBER_OF_POWER_SUPPLIES][2];
+/// for two DAC values: 0 and FULL_SCALE_IN_DAC_UNITS; additionally, a flag is used to indicate that the data is valid
+volatile bool Sig2LastReadings[NUMBER_OF_POWER_SUPPLIES][SIG2_RECORD_SIZE];
 
 //---------------------------------------------------------------------------------------------------
 // Local variables
@@ -99,8 +99,9 @@ void initializePsuTalks(void){
 	atomic_store_explicit( &PsuState, PSU_STOPPED, memory_order_release );
 	atomic_store_explicit( &IsMainContactorStateOn, false, memory_order_release );
 	for (int J = 0; J < NUMBER_OF_POWER_SUPPLIES; J++ ){
-		Sig2LastReadings[J][0] = false; // anything, but defined
-		Sig2LastReadings[J][1] = false;
+		Sig2LastReadings[J][SIG2_FOR_0_DAC_SETTING]          = false; // anything, but defined
+		Sig2LastReadings[J][SIG2_FOR_FULL_SCALE_DAC_SETTING] = false;
+		Sig2LastReadings[J][SIG2_IS_VALID_INFORMATION]       = false;
 	}
 
 	initializeWritingToDacs();
@@ -272,11 +273,7 @@ static bool psuFsmTurnContactorOn(void){
 	assert( false == PhysicalValue );
 	(void)PhysicalValue; // So that the compiler doesn't complain
 
-	printf( "Sig2LastReadings:\t%d / %d\t%d / %d\t%d / %d\t%d / %d\n",
-			Sig2LastReadings[0][0], Sig2LastReadings[0][1],
-			Sig2LastReadings[1][0], Sig2LastReadings[1][1],
-			Sig2LastReadings[2][0], Sig2LastReadings[2][1],
-			Sig2LastReadings[3][0], Sig2LastReadings[3][1] );
+	printf( "Sig2LastReadings:%s\n", convertSig2TableToText());
 
 	for (int J=0; J < NUMBER_OF_INSTALLED_PSU; J++ ){
 		WritingToDac_IsValidData[J] = false;
@@ -506,4 +503,28 @@ static uint16_t calculateRampStep( uint16_t TargetValue, uint16_t PresentValue )
 	}
 
 	return TemporaryRequiredDacValue;
+}
+
+/// This function prepares information on Sig2 readings in text form
+char* convertSig2TableToText(void){
+	static char Sig2Table[15];
+	for (int J = 0; J < NUMBER_OF_POWER_SUPPLIES; J++){
+		Sig2Table[3*J]   = ' ';
+		if (J >= PHYSICALLY_INSTALLED_PSU){
+			Sig2Table[3*J+1] = '-';
+			Sig2Table[3*J+2] = '-';
+		}
+		else{
+			if (!Sig2LastReadings[J][SIG2_IS_VALID_INFORMATION]){
+				Sig2Table[3*J+1] = '?';
+				Sig2Table[3*J+2] = '?';
+			}
+			else{
+				Sig2Table[3*J+1] = Sig2LastReadings[J][0] ? 'H' : 'L';
+				Sig2Table[3*J+2] = Sig2LastReadings[J][1] ? 'H' : 'L';
+			}
+		}
+		Sig2Table[4*J]   = 0; // termination character
+	}
+	return Sig2Table;
 }

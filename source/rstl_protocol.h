@@ -34,7 +34,7 @@
 //---------------------------------------------------------------------------------------------------
 
 typedef enum CommandErrorsEnum{
-	COMMAND_GOOD,
+	COMMAND_PROPER,
 	COMMAND_UNKNOWN,
 	COMMAND_INCORRECT_FORMAT,
 	COMMAND_OUT_OF_SERVICE,
