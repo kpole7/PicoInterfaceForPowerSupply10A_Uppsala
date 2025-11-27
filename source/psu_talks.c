@@ -507,10 +507,10 @@ static uint16_t calculateRampStep( uint16_t TargetValue, uint16_t PresentValue )
 
 /// This function prepares information on Sig2 readings in text form
 char* convertSig2TableToText(void){
-	static char Sig2Table[15];
+	static char Sig2Table[4*NUMBER_OF_POWER_SUPPLIES];
 	for (int J = 0; J < NUMBER_OF_POWER_SUPPLIES; J++){
 		Sig2Table[3*J]   = ' ';
-		if (J >= PHYSICALLY_INSTALLED_PSU){
+		if (J >= NUMBER_OF_INSTALLED_PSU){
 			Sig2Table[3*J+1] = '-';
 			Sig2Table[3*J+2] = '-';
 		}
@@ -524,7 +524,7 @@ char* convertSig2TableToText(void){
 				Sig2Table[3*J+2] = Sig2LastReadings[J][1] ? 'H' : 'L';
 			}
 		}
-		Sig2Table[4*J]   = 0; // termination character
+		Sig2Table[3*J+3]   = 0; // termination character
 	}
 	return Sig2Table;
 }

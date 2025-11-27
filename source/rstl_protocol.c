@@ -396,8 +396,7 @@ CommandErrors executeCommand(void){
 			// essential action
 			static const char TemporaryDescription1[] = "ON";
 			static const char TemporaryDescription2[] = "OFF";
-			snprintf( ResponseBuffer, COMMAND_BUFFER_LENGTH-1, "err %d i2c %d %d pwr %s sig2%s\r\n>",
-					ErrorCode,
+			snprintf( ResponseBuffer, COMMAND_BUFFER_LENGTH-1, "i2c err %d %d pwr %s sig2%s\r\n>",
 					atomic_load_explicit(&I2cConsecutiveErrors, memory_order_acquire),
 					atomic_load_explicit(&I2cMaxConsecutiveErrors, memory_order_acquire),
 					atomic_load_explicit( &IsMainContactorStateOn, memory_order_acquire ) ? TemporaryDescription1 : TemporaryDescription2,

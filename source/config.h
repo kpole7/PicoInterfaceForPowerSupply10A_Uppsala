@@ -8,7 +8,7 @@
 // Macro directives
 //---------------------------------------------------------------------------------------------------
 
-#define SIMULATE_HARDWARE_PSU			1
+#define SIMULATE_HARDWARE_PSU			0
 
 // This is a digital value for DAC corresponding to analog zero current
 #define OFFSET_IN_DAC_UNITS				2048
