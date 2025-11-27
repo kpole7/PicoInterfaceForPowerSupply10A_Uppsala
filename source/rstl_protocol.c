@@ -102,7 +102,7 @@ CommandErrors executeCommand(void){
 		float CommandFloatingPointArgument = 22222.2;
 		int16_t ValueInDacUnits = 22222; // value in the case of failure (out of range)
 		ParsingResult = parseFloatArgument( &CommandFloatingPointArgument, NewCommand+2, '\r' );
-		if ((ParsingResult < 0) || (CommadLength != 3+ParsingResult+2 ) ||
+		if ((ParsingResult < 0) || (CommadLength != 2+ParsingResult+2 ) ||
 				(NewCommand[CommadLength-2] != '\r') || (NewCommand[CommadLength-1] != '\n'))
 		{
 			ErrorCode = COMMAND_INCORRECT_SYNTAX;
