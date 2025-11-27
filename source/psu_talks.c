@@ -39,28 +39,31 @@
 atomic_int PsuState;
 
 /// @brief User's set-point value for the DAC (number from 0 to 0xFFF)
+/// TODO atomic
 volatile uint16_t UserSetpointDacValue[NUMBER_OF_POWER_SUPPLIES];
 
 /// @brief Setpoint value for the DAC (number from 0 to 0xFFF) at a given moment (follows the ramp)
-volatile uint16_t InstantaneousSetpointDacValue[NUMBER_OF_POWER_SUPPLIES];
+uint16_t InstantaneousSetpointDacValue[NUMBER_OF_POWER_SUPPLIES];
 
 /// @brief Set-point value written to the DAC (number from 0 to 0xFFF)
-volatile uint16_t WrittenToDacValue[NUMBER_OF_POWER_SUPPLIES];
+uint16_t WrittenToDacValue[NUMBER_OF_POWER_SUPPLIES];
 
 /// @brief This variable is used in a simple state machine
-volatile bool WritingToDac_IsValidData[NUMBER_OF_POWER_SUPPLIES];
+bool WritingToDac_IsValidData[NUMBER_OF_POWER_SUPPLIES];
 
 /// @brief The state of the power contactor: true=power on; false=power off
 atomic_bool IsMainContactorStateOn;
 
 /// This array is used to store readings of Sig2 for each channel and
 /// for two DAC values: 0 and FULL_SCALE_IN_DAC_UNITS; additionally, a flag is used to indicate that the data is valid
+/// TODO atomic
 volatile bool Sig2LastReadings[NUMBER_OF_POWER_SUPPLIES][SIG2_RECORD_SIZE];
 
 //---------------------------------------------------------------------------------------------------
 // Local variables
 //---------------------------------------------------------------------------------------------------
 
+// This variable is used only in the timer interrupt
 static uint32_t WritingToDac_RampDelay[NUMBER_OF_POWER_SUPPLIES];
 
 //---------------------------------------------------------------------------------------------------

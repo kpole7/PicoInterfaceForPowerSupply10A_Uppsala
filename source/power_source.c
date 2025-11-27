@@ -64,6 +64,10 @@ int main() {
 	initializeDebugDevices();
 	initializeRstlProtocol();
 	turnOnLedOnBoard();
+
+    for (volatile uint32_t DebugCounter = 0; DebugCounter < 5000; DebugCounter++) {
+        __asm volatile("nop");
+	}
 	startPeriodicInterrupt();
 
 	printf("Hello guys\n");

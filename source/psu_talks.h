@@ -47,13 +47,13 @@ extern atomic_int PsuState;
 extern volatile uint16_t UserSetpointDacValue[NUMBER_OF_POWER_SUPPLIES];
 
 /// @brief Setpoint value for the DAC (number from 0 to 0xFFF) at a given moment (follows the ramp)
-extern volatile uint16_t InstantaneousSetpointDacValue[NUMBER_OF_POWER_SUPPLIES];
+extern uint16_t InstantaneousSetpointDacValue[NUMBER_OF_POWER_SUPPLIES];
 
 /// @brief Set-point value written to the DAC (number from 0 to 0xFFF)
-extern volatile uint16_t WrittenToDacValue[NUMBER_OF_POWER_SUPPLIES];
+extern uint16_t WrittenToDacValue[NUMBER_OF_POWER_SUPPLIES];
 
 /// @brief This variable is used in a simple state machine
-extern volatile bool WritingToDac_IsValidData[NUMBER_OF_POWER_SUPPLIES];
+extern bool WritingToDac_IsValidData[NUMBER_OF_POWER_SUPPLIES];
 
 /// @brief The state of the power contactor: true=power on; false=power off
 extern atomic_bool IsMainContactorStateOn;

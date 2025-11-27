@@ -101,7 +101,7 @@ CommandErrors executeCommand(void){
 	if (strstr(NewCommand, "PC") == NewCommand){ // Program Current command
 		float CommandFloatingPointArgument = 22222.2;
 		int16_t ValueInDacUnits = 22222; // value in the case of failure (out of range)
-		ParsingResult = parseFloatArgument( &CommandFloatingPointArgument, NewCommand+3, '\r' );
+		ParsingResult = parseFloatArgument( &CommandFloatingPointArgument, NewCommand+2, '\r' );
 		if ((ParsingResult < 0) || (CommadLength != 3+ParsingResult+2 ) ||
 				(NewCommand[CommadLength-2] != '\r') || (NewCommand[CommadLength-1] != '\n'))
 		{
@@ -144,11 +144,12 @@ CommandErrors executeCommand(void){
 				}
 			}
 		}
-		printf( "%12llu\tPC\t%u\tE=%d\t%d\t0x%04X\n",
+		printf( "%12llu\tPC\t%u\tE=%d\t%d\t0x%04X\t%d\n",
 				time_us_64(),
 				(unsigned)atomic_load_explicit(&UserSelectedChannel, memory_order_acquire)+1,
 				ErrorCode,
-				ValueInDacUnits-OFFSET_IN_DAC_UNITS, ValueInDacUnits );
+				ValueInDacUnits-OFFSET_IN_DAC_UNITS, ValueInDacUnits,
+				ParsingResult );
 	}
 #if 0 // service commands
 	else if (strstr(NewCommand, "PCXI") == NewCommand){ // "Program current hexadecimal" command
