@@ -87,7 +87,6 @@ void driveUserInterface(void){
 
 /// @brief This function executes the command stored in NewCommand buffer
 /// @return value from enum CommandErrors
-/// @todo exception handling
 CommandErrors executeCommand(void){
 	char ResponseBuffer[LONGEST_RESPONSE_LENGTH];
 	CommandErrors ErrorCode = COMMAND_PROPER;
@@ -397,11 +396,12 @@ CommandErrors executeCommand(void){
 			// essential action
 			static const char TemporaryDescription1[] = "ON";
 			static const char TemporaryDescription2[] = "OFF";
-			snprintf( ResponseBuffer, COMMAND_BUFFER_LENGTH-1, "i2c err %u %u pwr %s sig2%s\r\n>",
+			snprintf( ResponseBuffer, COMMAND_BUFFER_LENGTH-1, "pwr %s sig2%s i2c err %u %u uart err %X\r\n>",
+					atomic_load_explicit( &IsMainContactorStateOn, memory_order_acquire ) ? TemporaryDescription1 : TemporaryDescription2,
+					convertSig2TableToText(),
 					(unsigned)atomic_load_explicit(&I2cConsecutiveErrors, memory_order_acquire),
 					(unsigned)atomic_load_explicit(&I2cMaxConsecutiveErrors, memory_order_acquire),
-					atomic_load_explicit( &IsMainContactorStateOn, memory_order_acquire ) ? TemporaryDescription1 : TemporaryDescription2,
-					convertSig2TableToText() );
+					(unsigned)atomic_load_explicit(&UartError, memory_order_acquire) );
 			transmitViaSerialPort( ResponseBuffer );
 		}
 		printf( "cmd st\n" );

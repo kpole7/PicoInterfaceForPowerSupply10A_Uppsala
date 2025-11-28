@@ -10,6 +10,7 @@
 #ifndef SOURCE_UART_TALKS_H_
 #define SOURCE_UART_TALKS_H_
 
+#include <stdatomic.h>
 #include "pico/stdlib.h"
 
 //---------------------------------------------------------------------------------------------------
@@ -19,6 +20,13 @@
 #define LONGEST_COMMAND_LENGTH				28			// ???
 
 #define LONGEST_RESPONSE_LENGTH				60
+
+//---------------------------------------------------------------------------------------------------
+// Global variables
+//---------------------------------------------------------------------------------------------------
+
+/// @brief This variable is used in UART interrupt handler
+extern atomic_uint_fast16_t UartError;
 
 //---------------------------------------------------------------------------------------------------
 // Function prototypes

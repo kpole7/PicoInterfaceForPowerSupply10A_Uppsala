@@ -39,6 +39,13 @@
 static_assert( LONGEST_RESPONSE_LENGTH < UART_OUTPUT_BUFFER_SIZE, "static_assert LONGEST_RESPONSE_LENGTH < UART_OUTPUT_BUFFER_SIZE" );
 
 //---------------------------------------------------------------------------------------------------
+// Global variables
+//---------------------------------------------------------------------------------------------------
+
+/// @brief This variable is used in UART interrupt handler
+atomic_uint_fast16_t UartError;
+
+//---------------------------------------------------------------------------------------------------
 // Local variables
 //---------------------------------------------------------------------------------------------------
 
@@ -54,10 +61,6 @@ static atomic_uint_fast64_t WhenReceivedLastByte;
 static char UartOutputBuffer[UART_OUTPUT_BUFFER_SIZE];
 
 static ring_spsc_t OutputRingBuffer;
-
-/// @brief This variable is used in UART interrupt handler
-/// @todo exception handling
-static atomic_uint_fast32_t UartError;
 
 //---------------------------------------------------------------------------------------------------
 // Local function prototypes
@@ -174,7 +177,7 @@ int8_t transmitViaSerialPort( const char* TextToBeSent ){
 }
 
 static void serialPortInterruptHandler( void ){
-	uint32_t UartErrorTemporary = 0;
+	uint16_t UartErrorTemporary = 0;
 	if (uart_is_readable(UART_ID)){
 		char IncomingCharacter = uart_getc(UART_ID);
 		bool Result = ringSpscPush( &InputRingBuffer, IncomingCharacter );
