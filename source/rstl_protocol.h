@@ -53,15 +53,15 @@ extern char NewCommand[COMMAND_BUFFER_LENGTH];
 
 /// @brief Currently selected (active) power supply unit
 /// All commands related to power supply settings apply to this device
-extern atomic_int UserSelectedChannel;
+extern atomic_uint_fast16_t UserSelectedChannel;
 
 /// @brief This is a code of an action that cannot be executed immediately but must be processed by a state machine
 /// The variable can be modified in the main loop and in the timer interrupt handler
-extern atomic_int OrderCode;
+extern atomic_uint_fast16_t OrderCode;
 
 /// @brief This is a power supply unit to which OrderCode refers
 /// The variable can be modified in the main loop and in the timer interrupt handler
-extern atomic_int OrderChannel;
+extern atomic_uint_fast16_t OrderChannel;
 
 //---------------------------------------------------------------------------------------------------
 // Function prototypes

@@ -83,11 +83,11 @@ atomic_bool I2cErrorsDisplay;
 
 /// @brief This variable is used to monitor the I2C devices.
 /// This is the instantaneous value of the length of the i2c hardware error sequence.
-atomic_int I2cConsecutiveErrors;
+atomic_uint_fast16_t I2cConsecutiveErrors;
 
 /// @brief This variable is used to monitor the I2C devices.
 /// This is the longest recorded length of i2c hardware error sequences.
-atomic_int I2cMaxConsecutiveErrors;
+atomic_uint_fast16_t I2cMaxConsecutiveErrors;
 
 //---------------------------------------------------------------------------------------------------
 // Local variables
@@ -95,9 +95,6 @@ atomic_int I2cMaxConsecutiveErrors;
 
 /// @brief This variable is used in a simple state machine
 static volatile WritingToDacStates WritingToDac_State;
-
-/// @brief This variable is used in a simple state machine
-static volatile uint32_t WritingToDac_Channel;
 
 ///---------------------------------------------------------------------------------------------------
 // Function prototypes
@@ -177,6 +174,7 @@ void writeToDacStateMachine(void){
 		DebugCounter1--;
 	}
 
+	static uint16_t WritingToDac_Channel;
 	static uint16_t WorkingDataForTwoPcf8574;
 	bool IsI2cSuccess;
 
@@ -189,11 +187,11 @@ void writeToDacStateMachine(void){
 				WritingToDac_IsValidData[WritingToDac_Channel])
 		{
 			if (0 == WrittenToDacValue[WritingToDac_Channel]){
-				Sig2LastReadings[WritingToDac_Channel][SIG2_FOR_0_DAC_SETTING] = getLogicFeedbackFromPsu();
+				atomic_store_explicit( &Sig2LastReadings[WritingToDac_Channel][SIG2_FOR_0_DAC_SETTING], getLogicFeedbackFromPsu(), memory_order_release );
 			}
 			if (FULL_SCALE_IN_DAC_UNITS == WrittenToDacValue[WritingToDac_Channel]){
-				Sig2LastReadings[WritingToDac_Channel][SIG2_FOR_FULL_SCALE_DAC_SETTING] = getLogicFeedbackFromPsu();
-				Sig2LastReadings[WritingToDac_Channel][SIG2_IS_VALID_INFORMATION] = true;
+				atomic_store_explicit( &Sig2LastReadings[WritingToDac_Channel][SIG2_FOR_FULL_SCALE_DAC_SETTING], getLogicFeedbackFromPsu(), memory_order_release );
+				atomic_store_explicit( &Sig2LastReadings[WritingToDac_Channel][SIG2_IS_VALID_INFORMATION], true, memory_order_release );
 			}
 		}
 
@@ -288,7 +286,7 @@ void writeToDacStateMachine(void){
 		break;
 
 	case WRITING_TO_DAC_FAILURE:
-		int TemporaryI2cErrors = atomic_load_explicit( &I2cConsecutiveErrors, memory_order_acquire );
+		uint16_t TemporaryI2cErrors = atomic_load_explicit( &I2cConsecutiveErrors, memory_order_acquire );
 		if (atomic_load_explicit( &I2cMaxConsecutiveErrors, memory_order_acquire ) < TemporaryI2cErrors){
 			atomic_store_explicit( &I2cMaxConsecutiveErrors, TemporaryI2cErrors, memory_order_release );
 		}
@@ -298,10 +296,10 @@ void writeToDacStateMachine(void){
 		}
 
 #if 1
-		printf( "%12llu\tI2C ERR=%d\t%d\n",
+		printf( "%12llu\tI2C ERR=%u\t%u\n",
 				time_us_64(),
-				TemporaryI2cErrors,
-				atomic_load_explicit( &I2cMaxConsecutiveErrors, memory_order_acquire ));
+				(unsigned)TemporaryI2cErrors,
+				(unsigned)atomic_load_explicit( &I2cMaxConsecutiveErrors, memory_order_acquire ));
 #endif
 		WritingToDac_State = WRITING_TO_DAC_SEND_1ST_BYTE;
 		break;

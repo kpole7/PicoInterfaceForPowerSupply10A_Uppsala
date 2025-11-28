@@ -31,15 +31,15 @@ char NewCommand[COMMAND_BUFFER_LENGTH];
 
 /// @brief Currently selected (active) power supply unit
 /// All commands related to power supply settings apply to this device
-atomic_int UserSelectedChannel;
+atomic_uint_fast16_t UserSelectedChannel;
 
 /// @brief This is a code of an action that cannot be executed immediately but must be processed by a state machine
 /// The variable can be modified in the main loop and in the timer interrupt handler
-atomic_int OrderCode;
+atomic_uint_fast16_t OrderCode;
 
 /// @brief This is a power supply unit to which OrderCode refers
 /// The variable can be modified in the main loop and in the timer interrupt handler
-atomic_int OrderChannel;
+atomic_uint_fast16_t OrderChannel;
 
 //---------------------------------------------------------------------------------------------------
 // Function prototypes
@@ -61,7 +61,7 @@ static int32_t parseHexadecimal3DigitsArgument( uint16_t *Result, char *TextPtr,
 void initializeRstlProtocol(void){
 	atomic_store_explicit( &UserSelectedChannel, 0, memory_order_release );
 	for (uint8_t J = 0; J < NUMBER_OF_POWER_SUPPLIES; J++){
-		UserSetpointDacValue[J] = OFFSET_IN_DAC_UNITS;
+		atomic_store_explicit( &UserSetpointDacValue[J], OFFSET_IN_DAC_UNITS, memory_order_release );
 		WrittenToDacValue[J] = OFFSET_IN_DAC_UNITS;
 	}
 	atomic_store_explicit( &OrderCode, ORDER_NONE, memory_order_release );
@@ -115,7 +115,7 @@ CommandErrors executeCommand(void){
 			}
 			else{
 				if (atomic_load_explicit( &OrderCode, memory_order_acquire ) == ORDER_NONE){
-					int TemporaryState = atomic_load_explicit(&PsuState, memory_order_acquire);
+					uint16_t TemporaryState = atomic_load_explicit(&PsuState, memory_order_acquire);
 					// proper syntax; command: power up
 					if (PSU_RUNNING == TemporaryState){
 						// essential action
@@ -127,9 +127,9 @@ CommandErrors executeCommand(void){
 						if (FULL_SCALE_IN_DAC_UNITS < ValueInDacUnits){
 							ValueInDacUnits = FULL_SCALE_IN_DAC_UNITS;
 						}
-						int TemporarySelectedChannel = atomic_load_explicit(&UserSelectedChannel, memory_order_acquire);
+						uint16_t TemporarySelectedChannel = atomic_load_explicit(&UserSelectedChannel, memory_order_acquire);
 						if (TemporarySelectedChannel < NUMBER_OF_POWER_SUPPLIES){
-							UserSetpointDacValue[TemporarySelectedChannel] = (uint16_t)ValueInDacUnits;
+							atomic_store_explicit( &UserSetpointDacValue[TemporarySelectedChannel], ValueInDacUnits, memory_order_release );
 						}
 						atomic_store_explicit( &OrderCode, ORDER_COMMAND_PC, memory_order_release );
 						atomic_store_explicit( &OrderChannel, TemporarySelectedChannel, memory_order_release );
@@ -163,9 +163,9 @@ CommandErrors executeCommand(void){
 		else{
 			if (atomic_load_explicit( &OrderCode, memory_order_acquire ) == ORDER_NONE){
 				// essential action
-				int TemporarySelectedChannel = atomic_load_explicit(&UserSelectedChannel, memory_order_acquire);
+				uint16_t TemporarySelectedChannel = atomic_load_explicit(&UserSelectedChannel, memory_order_acquire);
 				if (TemporarySelectedChannel < NUMBER_OF_POWER_SUPPLIES){
-					UserSetpointDacValue[TemporarySelectedChannel] = DacValue;
+					atomic_store_explicit( &UserSetpointDacValue[TemporarySelectedChannel], DacValue, memory_order_release );
 				}
 				atomic_store_explicit( &OrderCode, ORDER_COMMAND_PCI, memory_order_release );
 				atomic_store_explicit( &OrderChannel, TemporarySelectedChannel, memory_order_release );
@@ -212,9 +212,9 @@ CommandErrors executeCommand(void){
 					if (FULL_SCALE_IN_DAC_UNITS < ValueInDacUnits){
 						ValueInDacUnits = FULL_SCALE_IN_DAC_UNITS;
 					}
-					int TemporarySelectedChannel = atomic_load_explicit(&UserSelectedChannel, memory_order_acquire);
+					uint16_t TemporarySelectedChannel = atomic_load_explicit(&UserSelectedChannel, memory_order_acquire);
 					if (TemporarySelectedChannel < NUMBER_OF_POWER_SUPPLIES){
-						UserSetpointDacValue[TemporarySelectedChannel] = (uint16_t)ValueInDacUnits;
+						atomic_store_explicit( &UserSetpointDacValue[TemporarySelectedChannel], ValueInDacUnits, memory_order_release );
 					}
 					atomic_store_explicit( &OrderCode, ORDER_COMMAND_PCI, memory_order_release );
 					atomic_store_explicit( &OrderChannel, TemporarySelectedChannel, memory_order_release );
@@ -232,13 +232,13 @@ CommandErrors executeCommand(void){
 	}
 #endif
 	else if (strstr(NewCommand, "?PC") == NewCommand){ // "Get set-point value of current" command
-		int TemporarySelectedChannel = atomic_load_explicit(&UserSelectedChannel, memory_order_acquire);
+		uint16_t TemporarySelectedChannel = atomic_load_explicit(&UserSelectedChannel, memory_order_acquire);
 		if ((CommadLength != 3+2) || (NewCommand[CommadLength-2] != '\r') || (NewCommand[CommadLength-1] != '\n')){
 			ErrorCode = COMMAND_INCORRECT_SYNTAX;
 		}
 		else{
 			// essential action
-			float TemporaryUserSetpoint = (float)UserSetpointDacValue[TemporarySelectedChannel];
+			float TemporaryUserSetpoint = (float)atomic_load_explicit( &UserSetpointDacValue[TemporarySelectedChannel], memory_order_acquire );
 			TemporaryUserSetpoint -= (float)OFFSET_IN_DAC_UNITS;
 			TemporaryUserSetpoint *= DAC_TO_AMPERES_COEFFICIENT;
 			snprintf( ResponseBuffer, COMMAND_BUFFER_LENGTH-1, "%.2f\r\n>", TemporaryUserSetpoint );
@@ -246,7 +246,7 @@ CommandErrors executeCommand(void){
 		}
 		printf( "cmd ?PC\tE=%d\tch=%u\t0x%04X\n", ErrorCode,
 				(unsigned)TemporarySelectedChannel+1,
-				UserSetpointDacValue[TemporarySelectedChannel] );
+				atomic_load_explicit( &UserSetpointDacValue[TemporarySelectedChannel], memory_order_acquire ) );
 	}
 	else if (strstr(NewCommand, "Z") == NewCommand){ // "Select channel" command
 		uint8_t TemporaryChannel;
@@ -397,9 +397,9 @@ CommandErrors executeCommand(void){
 			// essential action
 			static const char TemporaryDescription1[] = "ON";
 			static const char TemporaryDescription2[] = "OFF";
-			snprintf( ResponseBuffer, COMMAND_BUFFER_LENGTH-1, "i2c err %d %d pwr %s sig2%s\r\n>",
-					atomic_load_explicit(&I2cConsecutiveErrors, memory_order_acquire),
-					atomic_load_explicit(&I2cMaxConsecutiveErrors, memory_order_acquire),
+			snprintf( ResponseBuffer, COMMAND_BUFFER_LENGTH-1, "i2c err %u %u pwr %s sig2%s\r\n>",
+					(unsigned)atomic_load_explicit(&I2cConsecutiveErrors, memory_order_acquire),
+					(unsigned)atomic_load_explicit(&I2cMaxConsecutiveErrors, memory_order_acquire),
 					atomic_load_explicit( &IsMainContactorStateOn, memory_order_acquire ) ? TemporaryDescription1 : TemporaryDescription2,
 					convertSig2TableToText() );
 			transmitViaSerialPort( ResponseBuffer );

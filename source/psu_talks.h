@@ -41,10 +41,10 @@ typedef enum {
 // Global variables
 //---------------------------------------------------------------------------------------------------
 
-extern atomic_int PsuState;
+extern atomic_uint_fast16_t PsuState;
 
 /// @brief Setpoint value for a DAC
-extern volatile uint16_t UserSetpointDacValue[NUMBER_OF_POWER_SUPPLIES];
+extern atomic_uint_fast16_t UserSetpointDacValue[NUMBER_OF_POWER_SUPPLIES];
 
 /// @brief Setpoint value for the DAC (number from 0 to 0xFFF) at a given moment (follows the ramp)
 extern uint16_t InstantaneousSetpointDacValue[NUMBER_OF_POWER_SUPPLIES];
@@ -60,7 +60,7 @@ extern atomic_bool IsMainContactorStateOn;
 
 /// This array is used to store readings of Sig2 for each channel and
 /// for two DAC values: 0 and FULL_SCALE_IN_DAC_UNITS; additionally, a flag is used to indicate that the data is valid
-extern volatile bool Sig2LastReadings[NUMBER_OF_POWER_SUPPLIES][SIG2_RECORD_SIZE];
+extern atomic_bool Sig2LastReadings[NUMBER_OF_POWER_SUPPLIES][SIG2_RECORD_SIZE];
 
 //---------------------------------------------------------------------------------------------------
 // Function prototypes

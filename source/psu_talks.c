@@ -30,17 +30,16 @@
 
 /// This constant defines the time intervals for the ramp generator
 /// For ? intervals ? measured in debug mode (SIMULATE_HARDWARE_PSU == 1) 2025-11-?
-#define RAMP_DELAY						8 // 202
+#define RAMP_DELAY						8
 
 //---------------------------------------------------------------------------------------------------
 // Global variables
 //---------------------------------------------------------------------------------------------------
 
-atomic_int PsuState;
+atomic_uint_fast16_t PsuState;
 
 /// @brief User's set-point value for the DAC (number from 0 to 0xFFF)
-/// TODO atomic
-volatile uint16_t UserSetpointDacValue[NUMBER_OF_POWER_SUPPLIES];
+atomic_uint_fast16_t UserSetpointDacValue[NUMBER_OF_POWER_SUPPLIES];
 
 /// @brief Setpoint value for the DAC (number from 0 to 0xFFF) at a given moment (follows the ramp)
 uint16_t InstantaneousSetpointDacValue[NUMBER_OF_POWER_SUPPLIES];
@@ -56,8 +55,7 @@ atomic_bool IsMainContactorStateOn;
 
 /// This array is used to store readings of Sig2 for each channel and
 /// for two DAC values: 0 and FULL_SCALE_IN_DAC_UNITS; additionally, a flag is used to indicate that the data is valid
-/// TODO atomic
-volatile bool Sig2LastReadings[NUMBER_OF_POWER_SUPPLIES][SIG2_RECORD_SIZE];
+atomic_bool Sig2LastReadings[NUMBER_OF_POWER_SUPPLIES][SIG2_RECORD_SIZE];
 
 //---------------------------------------------------------------------------------------------------
 // Local variables
@@ -102,9 +100,10 @@ void initializePsuTalks(void){
 	atomic_store_explicit( &PsuState, PSU_STOPPED, memory_order_release );
 	atomic_store_explicit( &IsMainContactorStateOn, false, memory_order_release );
 	for (int J = 0; J < NUMBER_OF_POWER_SUPPLIES; J++ ){
-		Sig2LastReadings[J][SIG2_FOR_0_DAC_SETTING]          = false; // anything, but defined
-		Sig2LastReadings[J][SIG2_FOR_FULL_SCALE_DAC_SETTING] = false;
-		Sig2LastReadings[J][SIG2_IS_VALID_INFORMATION]       = false;
+
+		atomic_store_explicit( &Sig2LastReadings[J][SIG2_FOR_0_DAC_SETTING],          false, memory_order_release );	// anything, but defined
+		atomic_store_explicit( &Sig2LastReadings[J][SIG2_FOR_FULL_SCALE_DAC_SETTING], false, memory_order_release );
+		atomic_store_explicit( &Sig2LastReadings[J][SIG2_IS_VALID_INFORMATION],       false, memory_order_release );
 	}
 
 	initializeWritingToDacs();
@@ -127,7 +126,7 @@ void setMainContactorState( bool NewState ){
 bool getLogicFeedbackFromPsu( void ){
 
 #if SIMULATE_HARDWARE_PSU == 1
-	int TemporaryChannel = atomic_load_explicit(&UserSelectedChannel, memory_order_acquire);
+	uint16_t TemporaryChannel = atomic_load_explicit(&UserSelectedChannel, memory_order_acquire);
 	assert(TemporaryChannel < NUMBER_OF_POWER_SUPPLIES);
 	bool Result = (WrittenToDacValue[TemporaryChannel] >= OFFSET_IN_DAC_UNITS);
 	return Result;
@@ -208,7 +207,7 @@ static bool psuFsmStopped(void){
 	(void)PhysicalValue; // So that the compiler doesn't complain
 
 	// orders
-	int TemporaryOrderCode = atomic_load_explicit( &OrderCode, memory_order_acquire );
+	uint16_t TemporaryOrderCode = atomic_load_explicit( &OrderCode, memory_order_acquire );
 	assert( TemporaryOrderCode < ORDER_COMMAND_ILLEGAL_CODE );
 	assert( TemporaryOrderCode >= ORDER_NONE );
 
@@ -308,7 +307,7 @@ static bool psuFsmRunning( uint32_t Channel ){
 	(void)PhysicalValue;  // So that the compiler doesn't complain
 
 	// orders
-	int TemporaryOrderCode = atomic_load_explicit( &OrderCode, memory_order_acquire );
+	uint16_t TemporaryOrderCode = atomic_load_explicit( &OrderCode, memory_order_acquire );
 	assert( TemporaryOrderCode < ORDER_COMMAND_ILLEGAL_CODE );
 	assert( TemporaryOrderCode >= ORDER_NONE );
 
@@ -321,7 +320,7 @@ static bool psuFsmRunning( uint32_t Channel ){
 		// There is a new order
 
 		if (ORDER_COMMAND_PCI == TemporaryOrderCode){
-			InstantaneousSetpointDacValue[TemporaryUserSelectedChannel] = UserSetpointDacValue[TemporaryUserSelectedChannel];
+			InstantaneousSetpointDacValue[TemporaryUserSelectedChannel] = atomic_load_explicit( &UserSetpointDacValue[TemporaryUserSelectedChannel], memory_order_acquire );
 			WritingToDac_IsValidData[TemporaryUserSelectedChannel] = true;
 			WritingToDac_RampDelay[Channel] = 0;
 			atomic_store_explicit( &OrderCode, ORDER_ACCEPTED, memory_order_release );
@@ -329,7 +328,8 @@ static bool psuFsmRunning( uint32_t Channel ){
 
 		if (ORDER_COMMAND_PC == TemporaryOrderCode){
 			InstantaneousSetpointDacValue[TemporaryUserSelectedChannel] =
-					calculateRampStep( UserSetpointDacValue[TemporaryUserSelectedChannel], WrittenToDacValue[TemporaryUserSelectedChannel] );
+					calculateRampStep( atomic_load_explicit( &UserSetpointDacValue[TemporaryUserSelectedChannel], memory_order_acquire ),
+							WrittenToDacValue[TemporaryUserSelectedChannel] );
 			WritingToDac_IsValidData[TemporaryUserSelectedChannel] = true;
 			WritingToDac_RampDelay[TemporaryUserSelectedChannel] = 0;
 			atomic_store_explicit( &OrderCode, ORDER_ACCEPTED, memory_order_release );
@@ -337,7 +337,7 @@ static bool psuFsmRunning( uint32_t Channel ){
 
 		if (ORDER_COMMAND_POWER_DOWN == TemporaryOrderCode){
 			for (int J = 0; J < NUMBER_OF_INSTALLED_PSU; J++ ){
-				UserSetpointDacValue[J] = OFFSET_IN_DAC_UNITS;
+				atomic_store_explicit( &UserSetpointDacValue[J], OFFSET_IN_DAC_UNITS, memory_order_release );
 				InstantaneousSetpointDacValue[J] = calculateRampStep( OFFSET_IN_DAC_UNITS, WrittenToDacValue[J] );
 				WritingToDac_IsValidData[J] = true;
 				WritingToDac_RampDelay[J] = 0;
@@ -350,7 +350,7 @@ static bool psuFsmRunning( uint32_t Channel ){
 
 	// continuation of ramps
 	if (TemporaryUserSelectedChannel != Channel){
-		if (WrittenToDacValue[Channel] == UserSetpointDacValue[Channel]){
+		if (WrittenToDacValue[Channel] == atomic_load_explicit( &UserSetpointDacValue[Channel], memory_order_acquire )){
 			// there is nothing to do
 			WritingToDac_IsValidData[Channel] = false;
 			WritingToDac_RampDelay[Channel] = 0;
@@ -367,7 +367,8 @@ static bool psuFsmRunning( uint32_t Channel ){
 			if (0 == WritingToDac_RampDelay[Channel]){
 				// next ramp step
 				InstantaneousSetpointDacValue[Channel] =
-						calculateRampStep( UserSetpointDacValue[Channel], WrittenToDacValue[Channel] );
+						calculateRampStep( atomic_load_explicit( &UserSetpointDacValue[Channel], memory_order_acquire ),
+								WrittenToDacValue[Channel] );
 				WritingToDac_IsValidData[Channel] = true;
 			}
 			else{
@@ -518,13 +519,13 @@ char* convertSig2TableToText(void){
 			Sig2Table[3*J+2] = '-';
 		}
 		else{
-			if (!Sig2LastReadings[J][SIG2_IS_VALID_INFORMATION]){
+			if (!atomic_load_explicit( &Sig2LastReadings[J][SIG2_IS_VALID_INFORMATION], memory_order_acquire )){
 				Sig2Table[3*J+1] = '?';
 				Sig2Table[3*J+2] = '?';
 			}
 			else{
-				Sig2Table[3*J+1] = Sig2LastReadings[J][0] ? 'H' : 'L';
-				Sig2Table[3*J+2] = Sig2LastReadings[J][1] ? 'H' : 'L';
+				Sig2Table[3*J+1] = atomic_load_explicit( &Sig2LastReadings[J][0], memory_order_acquire ) ? 'H' : 'L';
+				Sig2Table[3*J+2] = atomic_load_explicit( &Sig2LastReadings[J][1], memory_order_acquire ) ? 'H' : 'L';
 			}
 		}
 		Sig2Table[3*J+3]   = 0; // termination character
