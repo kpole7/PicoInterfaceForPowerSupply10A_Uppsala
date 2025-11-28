@@ -182,7 +182,9 @@ void writeToDacStateMachine(void){
 	switch( WritingToDac_State ){
 	case WRITING_TO_DAC_INITIALIZE:
 
-		// Sig2 signal handling
+		// Sig2 signal handling.
+		// The Sig2 signal is active only when we have written the address of a given PSU to the PCF8574 chips
+		// (the /WR signal does not have to be active, but it does not interfere)
 		if (!atomic_load_explicit( &IsMainContactorStateOn, memory_order_acquire ) &&
 				WritingToDac_IsValidData[WritingToDac_Channel])
 		{
