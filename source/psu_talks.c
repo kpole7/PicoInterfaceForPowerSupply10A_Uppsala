@@ -196,9 +196,7 @@ bool psuStateMachine( uint32_t Channel ){
 		break;
 
 	case PSU_SHUTTING_DOWN_ZEROING:
-		if (NUMBER_OF_POWER_SUPPLIES-1 == Channel){
-			psuFsmShutingDownZeroing( Channel );
-		}
+		psuFsmShutingDownZeroing( Channel );
 		break;
 
 	case PSU_SHUTTING_DOWN_CONTACTOR_OFF:
