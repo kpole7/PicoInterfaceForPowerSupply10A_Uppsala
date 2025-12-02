@@ -6,6 +6,7 @@
 #include "psu_talks.h"
 #include "writing_to_dac.h"
 #include "main_timer.h"
+#include "debugging.h"
 
 //---------------------------------------------------------------------------------------------------
 // Macro directives
@@ -43,6 +44,8 @@ void startPeriodicInterrupt(void){
 }
 
 static int64_t timerInterruptHandler(alarm_id_t id, void *user_data){
+//	changeDebugPin1(true);
+
 	// Analog-to-digital converter operation
 	static uint8_t TimeCounterAdc;
 	TimeCounterAdc++;
@@ -52,6 +55,8 @@ static int64_t timerInterruptHandler(alarm_id_t id, void *user_data){
 	}
 
 	writeToDacStateMachine();
+
+//	changeDebugPin1(false);		// measured average frequency 1.66 kHz; max. duration 450 us (2025-12-01)
 
 	// timer restart
 	return TIMER_INTERRUPT_INTERVAL_US;

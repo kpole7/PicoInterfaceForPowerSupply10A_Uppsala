@@ -29,10 +29,11 @@
 #define SLOW_RAMP_STEP_IN_DAC_UNITS		1
 
 /// This constant defines the time intervals for the ramp generator
-/// For ? intervals ? measured in debug mode (SIMULATE_HARDWARE_PSU == 1) 2025-11-?  TODO
+/// For RAMP_DELAY==8, one step of the ramp takes 88 ms (11.4 Hz)
 #define RAMP_DELAY						8
 
-#define ANALOG_SIGNALS_STABILIZATION	60
+#define ANALOG_SIGNALS_STABILIZATION		100
+#define ANALOG_SIGNALS_LONG_STABILIZATION	(2*ANALOG_SIGNALS_STABILIZATION)
 
 //---------------------------------------------------------------------------------------------------
 // Global variables
@@ -213,7 +214,11 @@ bool psuStateMachine( uint32_t Channel ){
 	static int OldPsuState;
 	TemporaryPsuState = atomic_load_explicit( &PsuState, memory_order_acquire );
 	if (TemporaryPsuState != OldPsuState){
-		printf( "state %d -> %d\n", OldPsuState, TemporaryPsuState );
+
+		printf( "%12llu\tstate %d -> %d\n",
+				time_us_64(),
+				OldPsuState,
+				TemporaryPsuState );
 		OldPsuState = TemporaryPsuState;
 	}
 #endif
@@ -333,14 +338,14 @@ static bool psuFsmZeroing(){
 		WritingToDac_RampDelay[J] = 0;
 	}
 	atomic_store_explicit( &PsuState, PSU_INITIAL_CONTACTOR_ON, memory_order_release );
-	TransitionalDelay = ANALOG_SIGNALS_STABILIZATION;
+	TransitionalDelay = ANALOG_SIGNALS_LONG_STABILIZATION;
 	return true;
 }
 
 static bool psuFsmTurnContactorOn(void){
 	if (0 != TransitionalDelay){
 		// wait without writing via i2c
-		if (ANALOG_SIGNALS_STABILIZATION == TransitionalDelay){
+		if (ANALOG_SIGNALS_LONG_STABILIZATION == TransitionalDelay){
 			for (int J=0; J < NUMBER_OF_INSTALLED_PSU; J++ ){
 				WritingToDac_IsValidData[J] = false;
 			}
@@ -372,7 +377,8 @@ static bool psuFsmTurnContactorOn(void){
 		atomic_store_explicit( &IsMainContactorStateOn, true, memory_order_release );
 		setMainContactorState( true );
 
-		printf("main contactor switched on\n");
+		printf( "%12llu\tmain contactor switched on\n",
+				time_us_64());
 
 		atomic_store_explicit( &PsuState, PSU_RUNNING, memory_order_release );
 	}
@@ -477,7 +483,7 @@ static bool psuFsmShutingDownZeroing( uint32_t Channel ){
 		}
 		// all ramps are completed
 		atomic_store_explicit( &PsuState, PSU_SHUTTING_DOWN_CONTACTOR_OFF, memory_order_release );
-		TransitionalDelay = ANALOG_SIGNALS_STABILIZATION;
+		TransitionalDelay = ANALOG_SIGNALS_LONG_STABILIZATION;
 		return true;
 	}
 	else{
@@ -505,7 +511,7 @@ static bool psuFsmShutingDownZeroing( uint32_t Channel ){
 static bool psuFsmShutingDownSwitchOff(void){
 	if (0 != TransitionalDelay){
 		// wait without writing via i2c
-		if (ANALOG_SIGNALS_STABILIZATION == TransitionalDelay){
+		if (ANALOG_SIGNALS_LONG_STABILIZATION == TransitionalDelay){
 			for (int J=0; J < NUMBER_OF_INSTALLED_PSU; J++ ){
 				WritingToDac_IsValidData[J] = false;
 			}
@@ -522,7 +528,8 @@ static bool psuFsmShutingDownSwitchOff(void){
 		atomic_store_explicit( &IsMainContactorStateOn, false, memory_order_release );
 		setMainContactorState( false );
 
-		printf("main contactor switched off\n");
+		printf( "%12llu\tmain contactor switched off\n",
+				time_us_64());
 
 		atomic_store_explicit( &PsuState, PSU_STOPPED, memory_order_release );
 	}
@@ -604,7 +611,7 @@ static uint16_t calculateRampStep( uint16_t TargetValue, uint16_t PresentValue )
 
 /// This function prepares information on Sig2 readings in text form
 char* convertSig2TableToText(void){
-	static char Sig2Table[4*NUMBER_OF_POWER_SUPPLIES];
+	static char Sig2Table[3*NUMBER_OF_POWER_SUPPLIES+5];
 	for (int J = 0; J < NUMBER_OF_POWER_SUPPLIES; J++){
 		Sig2Table[3*J]   = ' ';
 		if (J >= NUMBER_OF_INSTALLED_PSU){
@@ -621,7 +628,7 @@ char* convertSig2TableToText(void){
 				Sig2Table[3*J+2] = atomic_load_explicit( &Sig2LastReadings[J][1], memory_order_acquire ) ? 'H' : 'L';
 			}
 		}
-		Sig2Table[3*J+3]   = 0; // termination character
 	}
+	Sig2Table[3*NUMBER_OF_POWER_SUPPLIES]   = 0; // termination character
 	return Sig2Table;
 }

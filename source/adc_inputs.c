@@ -45,8 +45,7 @@ void initializeAdcMeasurements(void){
 	adc_gpio_init(GPIO_FOR_ADC1);
 }
 
-/// @brief This function is called by timer interrupt handler
-/// This function collects measurements from ADC
+/// @brief This function collects measurements from ADC; it is to be called by timer interrupt
 void getVoltageSamples(void){
 
 	// Measure ADC0

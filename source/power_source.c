@@ -16,9 +16,6 @@
 /// The communication protocol is implemented in the `uart_talks.c` module.
 ///
 /// Abbreviations: PSU = power source unit;  FSM = finite state machine
-///
-/// @todo Check (using an oscilloscope) the duration of the timer interrupt handler
-/// @todo Check the duration of the UART interrupt handler
 
 #include <stdbool.h>	// just for Eclipse
 #include <stdio.h>		// just for debugging
