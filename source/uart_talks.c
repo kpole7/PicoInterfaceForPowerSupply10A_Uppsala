@@ -177,7 +177,7 @@ int8_t transmitViaSerialPort( const char* TextToBeSent ){
 }
 
 static void serialPortInterruptHandler( void ){
-	changeDebugPin1(true);
+//	changeDebugPin1(true);
 
 	uint16_t UartErrorTemporary = 0;
 	if (uart_is_readable(UART_ID)){
@@ -208,7 +208,7 @@ static void serialPortInterruptHandler( void ){
 	}
 	atomic_fetch_or_explicit( &UartError, UartErrorTemporary, memory_order_relaxed );
 
-	changeDebugPin1(false); // measured duration 1...6 us
+//	changeDebugPin1(false); // measured duration 1...7 us
 }
 
 static inline bool is_tx_irq_enabled(uart_inst_t *uart) {

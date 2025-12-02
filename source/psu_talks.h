@@ -26,26 +26,27 @@
 /// This definition contains a list of states of a finite state machine that represents entire multichannel power supply.
 /// The state machine supports all operating modes of the equipment.
 typedef enum {
-	PSU_STOPPED,
-	PSU_INITIAL_SIG2_LOW_SET_DAC,
-	PSU_INITIAL_SIG2_LOW_TEST,
-	PSU_INITIAL_SIG2_HIGH_SET_DAC,
-	PSU_INITIAL_SIG2_HIGH_TEST,
-	PSU_INITIAL_ZEROING,
-	PSU_INITIAL_CONTACTOR_ON,
-	PSU_RUNNING,
-	PSU_SHUTTING_DOWN_ZEROING,
-	PSU_SHUTTING_DOWN_CONTACTOR_OFF,
-	PSU_ILLEGAL_STATE
+	PSU_STOPPED,					// stable state; power supply is turned off
+	PSU_INITIAL_SIG2_LOW_SET_DAC,	// transitional state; during power-up
+	PSU_INITIAL_SIG2_LOW_TEST,		// transitional state; during power-up
+	PSU_INITIAL_SIG2_HIGH_SET_DAC,	// transitional state; during power-up
+	PSU_INITIAL_SIG2_HIGH_TEST,		// transitional state; during power-up
+	PSU_INITIAL_ZEROING,			// transitional state; during power-up
+	PSU_INITIAL_CONTACTOR_ON,		// transitional state; during power-up
+	PSU_RUNNING,					// stable state; power supply is turned on
+	PSU_SHUTTING_DOWN_ZEROING,		// transitional state; during power-down
+	PSU_SHUTTING_DOWN_CONTACTOR_OFF,// transitional state; during power-down
+	PSU_ILLEGAL_STATE				// number of correct states
 }PsuOperatingStates;
 
 //---------------------------------------------------------------------------------------------------
 // Global variables
 //---------------------------------------------------------------------------------------------------
 
+/// FSM state; takes values from PsuOperatingStates
 extern atomic_uint_fast16_t PsuState;
 
-/// @brief Setpoint value for a DAC
+/// @brief User's set-point value for the DAC (number from 0 to 0xFFF)
 extern atomic_uint_fast16_t UserSetpointDacValue[NUMBER_OF_POWER_SUPPLIES];
 
 /// @brief Setpoint value for the DAC (number from 0 to 0xFFF) at a given moment (follows the ramp)

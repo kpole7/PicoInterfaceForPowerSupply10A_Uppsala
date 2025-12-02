@@ -267,10 +267,10 @@ void writeToDacStateMachine(void){
 			WrittenToDacValue[WritingToDac_Channel] = InstantaneousSetpointDacValue[WritingToDac_Channel];
 
 #if 1
-//			changeDebugPin1(true);
+			changeDebugPin1(true);
 			uint32_t DacAddress = decodeDataSentToPcf8574s( &DebugValueWrittenToDac[0], DebugValueWrittenToPCFs ); // just for debugging
-			printf( "%12llu\ti2c\t%d\t%d\t%d\t%d\t%d\n",
-					time_us_64(),
+			printf( "%s\ti2c\t%d\t%d\t%d\t%d\t%d\n",
+					timeTextForDebugging(),
 					WritingToDac_Channel,
 					WrittenToDacValue[0]-OFFSET_IN_DAC_UNITS,
 					WrittenToDacValue[1]-OFFSET_IN_DAC_UNITS,
@@ -281,7 +281,7 @@ void writeToDacStateMachine(void){
 			{
 				printf( "\t INCONSISTENCY INCONSISTENCY INCONSISTENCY!!!\n" );
 			}
-//			changeDebugPin1(false);		// measured time = 100...120 us  (2025-12-01); pulse frequency in the case of ramp execution: 11.7Hz
+			changeDebugPin1(false);		// measured time = 100...145 us  (2025-12-02); pulse frequency in the case of ramp execution: 11.7Hz
 #endif
 		}
 		WritingToDac_State = WRITING_TO_DAC_INITIALIZE;
@@ -298,8 +298,8 @@ void writeToDacStateMachine(void){
 		}
 
 #if 1
-		printf( "%12llu\tI2C ERR=%u\t%u\n",
-				time_us_64(),
+		printf( "%s\tI2C ERR=%u\t%u\n",
+				timeTextForDebugging(),
 				(unsigned)TemporaryI2cErrors,
 				(unsigned)atomic_load_explicit( &I2cMaxConsecutiveErrors, memory_order_acquire ));
 #endif

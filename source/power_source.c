@@ -4,16 +4,16 @@
 /// ### Details
 ///
 /// The interface is implemented on the RP2040 processor. The program performs the following functions:
-/// #### 1.   Communication with 8 power supplies via I2C and logic signals (GPIO).
+/// #### 1.   Communication with 4 power supplies via I2C and logic signals (GPIO).
 /// - Addressing power supplies (I2C).
 /// - Controlling digital-to-analog converters (I2C and GPIO).
-/// - Reading logic signals from 8 power supplies representing the direction of the power supplies' output currents (GPIO).
+/// - Reading logic signals from 4 power supplies (GPIO).
 /// #### 2.   Generating a pulse signal (PWM).
-/// #### 3.   Analog measurement of signals from 8 power supplies.
+/// #### 3.   Analog measurement of signals from 4 power supplies.
 /// - Channel multiplexing (GPIO).
 /// - Analog voltage measurement (ADC0).
 /// #### 4.   Communication with the main unit via a serial port (UART0).
-/// The communication protocol is implemented in the `uart_talks.c` module.
+/// The communication protocol is implemented in the `rstl_protocol.c` module.
 ///
 /// Abbreviations: PSU = power source unit;  FSM = finite state machine
 

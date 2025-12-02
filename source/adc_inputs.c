@@ -65,7 +65,6 @@ void getVoltageSamples(void){
 }
 
 /// @brief This function measures the voltage at ADC input and make some calculations
-///
 /// The function acts in the main loop
 float getVoltage( uint8_t AdcIndex ){
 	if (0 == AdcIndex){

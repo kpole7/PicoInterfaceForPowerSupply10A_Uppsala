@@ -6,6 +6,7 @@
 #include "psu_talks.h"
 #include "rstl_protocol.h"
 #include "writing_to_dac.h"
+#include "debugging.h"
 
 //---------------------------------------------------------------------------------------------------
 // Macro directives
@@ -32,13 +33,14 @@
 /// For RAMP_DELAY==8, one step of the ramp takes 88 ms (11.4 Hz)
 #define RAMP_DELAY						8
 
-#define ANALOG_SIGNALS_STABILIZATION		100
+#define ANALOG_SIGNALS_STABILIZATION		120
 #define ANALOG_SIGNALS_LONG_STABILIZATION	(2*ANALOG_SIGNALS_STABILIZATION)
 
 //---------------------------------------------------------------------------------------------------
 // Global variables
 //---------------------------------------------------------------------------------------------------
 
+/// FSM state; takes values from PsuOperatingStates
 atomic_uint_fast16_t PsuState;
 
 /// @brief User's set-point value for the DAC (number from 0 to 0xFFF)
@@ -144,6 +146,9 @@ bool getLogicFeedbackFromPsu( void ){
 
 }
 
+/// @brief This function supervises ramp execution after a step has been completed and handles orders for DACs
+/// @param Channel channel served in the last cycle
+/// @return synchronize channels
 bool psuStateMachine( uint32_t Channel ){
 	bool Result = false;
 	assert( Channel < NUMBER_OF_POWER_SUPPLIES );
@@ -164,7 +169,7 @@ bool psuStateMachine( uint32_t Channel ){
 
 	case PSU_INITIAL_SIG2_LOW_TEST:
 		if (NUMBER_OF_POWER_SUPPLIES-1 == Channel){
-			psuFsmSig2LowTest();
+			Result = psuFsmSig2LowTest();
 		}
 		break;
 
@@ -197,12 +202,12 @@ bool psuStateMachine( uint32_t Channel ){
 		break;
 
 	case PSU_SHUTTING_DOWN_ZEROING:
-		psuFsmShutingDownZeroing( Channel );
+		Result = psuFsmShutingDownZeroing( Channel );
 		break;
 
 	case PSU_SHUTTING_DOWN_CONTACTOR_OFF:
 		if (NUMBER_OF_POWER_SUPPLIES-1 == Channel){
-			psuFsmShutingDownSwitchOff();
+			Result = psuFsmShutingDownSwitchOff();
 		}
 		break;
 
@@ -214,9 +219,8 @@ bool psuStateMachine( uint32_t Channel ){
 	static int OldPsuState;
 	TemporaryPsuState = atomic_load_explicit( &PsuState, memory_order_acquire );
 	if (TemporaryPsuState != OldPsuState){
-
-		printf( "%12llu\tstate %d -> %d\n",
-				time_us_64(),
+		printf( "%s\tstate %d -> %d\n",
+				timeTextForDebugging(),
 				OldPsuState,
 				TemporaryPsuState );
 		OldPsuState = TemporaryPsuState;
@@ -377,8 +381,8 @@ static bool psuFsmTurnContactorOn(void){
 		atomic_store_explicit( &IsMainContactorStateOn, true, memory_order_release );
 		setMainContactorState( true );
 
-		printf( "%12llu\tmain contactor switched on\n",
-				time_us_64());
+		printf( "%s\tmain contactor switched on\n",
+				timeTextForDebugging());
 
 		atomic_store_explicit( &PsuState, PSU_RUNNING, memory_order_release );
 	}
@@ -528,8 +532,8 @@ static bool psuFsmShutingDownSwitchOff(void){
 		atomic_store_explicit( &IsMainContactorStateOn, false, memory_order_release );
 		setMainContactorState( false );
 
-		printf( "%12llu\tmain contactor switched off\n",
-				time_us_64());
+		printf( "%s\tmain contactor switched off\n",
+				timeTextForDebugging());
 
 		atomic_store_explicit( &PsuState, PSU_STOPPED, memory_order_release );
 	}
@@ -543,7 +547,8 @@ static uint16_t calculateRampStep( uint16_t TargetValue, uint16_t PresentValue )
 	// Deal with the area near zero current.
 	if (PresentValue > (OFFSET_IN_DAC_UNITS + NEAR_ZERO_REGION_IN_DAC_UNITS)){
 		if (TargetValue < (OFFSET_IN_DAC_UNITS + NEAR_ZERO_REGION_IN_DAC_UNITS)){
-			//			           |  <---------<                   the arrow indicates the present value and the user-specified setpoint value
+			//			        <---------------<                   the arrow indicates the present value and the user-specified setpoint value
+			//					   |     <------<
 			//			-----------|---0---|----------------> I
 			TemporaryRequiredDacValue = (OFFSET_IN_DAC_UNITS + NEAR_ZERO_REGION_IN_DAC_UNITS);	// The ramp will be fast, but possibly shortened
 		}
@@ -557,6 +562,7 @@ static uint16_t calculateRampStep( uint16_t TargetValue, uint16_t PresentValue )
 	}
 	else if (PresentValue < (OFFSET_IN_DAC_UNITS - NEAR_ZERO_REGION_IN_DAC_UNITS)){
 		if (TargetValue   > (OFFSET_IN_DAC_UNITS - NEAR_ZERO_REGION_IN_DAC_UNITS)){
+			//				  >--------------->
 			//			      >--------->  |
 			//			-----------|---0---|----------------> I
 			TemporaryRequiredDacValue = (OFFSET_IN_DAC_UNITS - NEAR_ZERO_REGION_IN_DAC_UNITS);	// The ramp will be fast, but possibly shortened
@@ -573,16 +579,16 @@ static uint16_t calculateRampStep( uint16_t TargetValue, uint16_t PresentValue )
 		if ((PresentValue <= (OFFSET_IN_DAC_UNITS + NEAR_ZERO_REGION_IN_DAC_UNITS)) &&
 				(TargetValue > (OFFSET_IN_DAC_UNITS + NEAR_ZERO_REGION_IN_DAC_UNITS)))
 		{
-			//			           |     >-->
-			//			           |       >-->
+			//			           |     >----->
+			//			           |       >--->
 			//			-----------|---0---|----------------> I
 			RampStep = SLOW_RAMP_STEP_IN_DAC_UNITS; // slow down
 		}
 		else if ((PresentValue >= (OFFSET_IN_DAC_UNITS - NEAR_ZERO_REGION_IN_DAC_UNITS)) &&
 				(TargetValue < (OFFSET_IN_DAC_UNITS - NEAR_ZERO_REGION_IN_DAC_UNITS)))
 		{
-			//			         <--<      |
-			//			        <--<       |
+			//			      <------<     |
+			//			      <----<       |
 			//			-----------|---0---|----------------> I
 			RampStep = SLOW_RAMP_STEP_IN_DAC_UNITS; // slow down
 		}

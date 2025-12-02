@@ -1,5 +1,6 @@
 /// @file debugging.c
 
+#include <stdio.h>
 #include "pico/stdlib.h"
 #include "hardware/timer.h"
 
@@ -73,3 +74,13 @@ void changeDebugPin2( bool NewValue ){
 	gpio_put( GPIO_FOR_DEBUG_PIN_2, NewValue );
 }
 
+char* timeTextForDebugging(void){
+	static char TimeText[20];
+	snprintf( TimeText, sizeof(TimeText)-1, "%12lu", time_us_32() );
+	TimeText[10] = 0; // shorten the text
+	TimeText[9] = TimeText[8];
+	TimeText[8] = TimeText[7];
+	TimeText[7] = TimeText[6];
+	TimeText[6] = '.';	// insert a period after full seconds
+	return TimeText;
+}

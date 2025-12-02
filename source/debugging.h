@@ -33,4 +33,6 @@ void changeDebugPin1( bool NewValue );
 
 void changeDebugPin2( bool NewValue );
 
+char* timeTextForDebugging(void);
+
 #endif // SOURCE_DEBUGGING_H_

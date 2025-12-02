@@ -11,6 +11,7 @@
 #include "psu_talks.h"
 #include "adc_inputs.h"
 #include "compilation_time.h"
+#include "debugging.h"
 
 //---------------------------------------------------------------------------------------------------
 // Macro directives
@@ -143,8 +144,8 @@ CommandErrors executeCommand(void){
 				}
 			}
 		}
-		printf( "%12llu\tPC\t%u\tE=%d\t%d\t0x%04X\t%d\n",
-				time_us_64(),
+		printf( "%s\tPC\t%u\tE=%d\t%d\t0x%04X\t%d\n",
+				timeTextForDebugging(),
 				(unsigned)atomic_load_explicit(&UserSelectedChannel, memory_order_acquire)+1,
 				ErrorCode,
 				ValueInDacUnits-OFFSET_IN_DAC_UNITS, ValueInDacUnits,
