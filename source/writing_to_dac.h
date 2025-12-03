@@ -1,7 +1,7 @@
 /// @file writing_to_dac.h
 /// @brief This module implements the hardware layer of communication with DACs.
 /// This layer is lower than the protocol layer, but higher than the communication layer
-/// with two PCF8574 chips the I2C interface.
+/// with two PCF8574 chips (with i2c interface).
 
 #ifndef SOURCE_WRITING_TO_DAC_H_
 #define SOURCE_WRITING_TO_DAC_H_

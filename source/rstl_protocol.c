@@ -285,7 +285,7 @@ CommandErrors executeCommand(void){
 			snprintf( ResponseBuffer, COMMAND_BUFFER_LENGTH-1, "ver. %s\r\n>", CompilationTime );
 			transmitViaSerialPort( ResponseBuffer );
 		}
-		printf( "cmd wer\tE=%d\tch=%u\tver. %s\n", ErrorCode,
+		printf( "cmd ver\tE=%d\tch=%u\tver. %s\n", ErrorCode,
 				(unsigned)atomic_load_explicit(&UserSelectedChannel, memory_order_acquire)+1,
 				CompilationTime );
 	}
