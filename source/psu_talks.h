@@ -56,7 +56,7 @@ extern uint16_t InstantaneousSetpointDacValue[NUMBER_OF_POWER_SUPPLIES];
 extern uint16_t WrittenToDacValue[NUMBER_OF_POWER_SUPPLIES];
 
 /// @brief This variable is used in a simple state machine
-extern bool WritingToDac_IsValidData[NUMBER_OF_POWER_SUPPLIES];
+extern bool WriteToDacDataReady[NUMBER_OF_POWER_SUPPLIES];
 
 /// @brief The state of the power contactor: true=power on; false=power off
 extern atomic_bool IsMainContactorStateOn;
@@ -80,7 +80,8 @@ bool getLogicFeedbackFromPsu( void );
 
 /// @brief This function supervises ramp execution after a step has been completed and handles orders for DACs
 /// @param Channel channel served in the last cycle
-/// @return synchronize channels
+/// @return true = reset channel index
+/// @return false = don't modify channel index
 bool psuStateMachine( uint32_t Channel );
 
 /// This function prepares information on Sig2 readings in text form

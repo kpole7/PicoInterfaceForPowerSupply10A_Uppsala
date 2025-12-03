@@ -156,7 +156,7 @@ void initializeWritingToDacs(void){
 	gpio_put( GPIO_FOR_NOT_WR_OUTPUT, true );	// the idle state is high
 
 	for (uint32_t J = 0; J < NUMBER_OF_POWER_SUPPLIES; J++){
-		WritingToDac_IsValidData[J] = false;
+		WriteToDacDataReady[J] = false;
 	}
 	WritingToDac_State = WRITING_TO_DAC_INITIALIZE;
 	atomic_store_explicit( &I2cConsecutiveErrors, 0, memory_order_release );
@@ -186,7 +186,7 @@ void writeToDacStateMachine(void){
 		// The Sig2 signal is active only when we have written the address of a given PSU to the PCF8574 chips
 		// (the /WR signal does not have to be active, but it does not interfere)
 		if (!atomic_load_explicit( &IsMainContactorStateOn, memory_order_acquire ) &&
-				WritingToDac_IsValidData[WritingToDac_Channel])
+				WriteToDacDataReady[WritingToDac_Channel])
 		{
 			if (0 == WrittenToDacValue[WritingToDac_Channel]){
 				atomic_store_explicit( &Sig2LastReadings[WritingToDac_Channel][SIG2_FOR_0_DAC_SETTING], getLogicFeedbackFromPsu(), memory_order_release );
@@ -213,7 +213,7 @@ void writeToDacStateMachine(void){
 				WritingToDac_Channel = 0;
 			}
 		}
-		if (WritingToDac_IsValidData[WritingToDac_Channel]){
+		if (WriteToDacDataReady[WritingToDac_Channel]){
 			WorkingDataForTwoPcf8574 = prepareDataForTwoPcf8574( InstantaneousSetpointDacValue[WritingToDac_Channel], AddressTable[WritingToDac_Channel] );
 		}
 
@@ -221,7 +221,7 @@ void writeToDacStateMachine(void){
 		break;
 
 	case WRITING_TO_DAC_SEND_1ST_BYTE:
-		if (WritingToDac_IsValidData[WritingToDac_Channel]){
+		if (WriteToDacDataReady[WritingToDac_Channel]){
 			IsI2cSuccess = i2cWrite( PCF8574_ADDRESS_2, (uint8_t)WorkingDataForTwoPcf8574 );
 			if (IsI2cSuccess){
 				atomic_store_explicit( &I2cConsecutiveErrors, 0, memory_order_release );
@@ -241,7 +241,7 @@ void writeToDacStateMachine(void){
 		break;
 
 	case WRITING_TO_DAC_SEND_2ND_BYTE:
-		if (WritingToDac_IsValidData[WritingToDac_Channel]){
+		if (WriteToDacDataReady[WritingToDac_Channel]){
 			IsI2cSuccess = i2cWrite( PCF8574_ADDRESS_1, (uint8_t)(WorkingDataForTwoPcf8574 >> 8) );
 			if (IsI2cSuccess){
 				atomic_store_explicit( &I2cConsecutiveErrors, 0, memory_order_release );
@@ -261,7 +261,7 @@ void writeToDacStateMachine(void){
 		break;
 
 	case WRITING_TO_DAC_LATCH_DATA:
-		if (WritingToDac_IsValidData[WritingToDac_Channel]){
+		if (WriteToDacDataReady[WritingToDac_Channel]){
 			// writing to ADC (signal /WR)
 			gpio_put( GPIO_FOR_NOT_WR_OUTPUT, false );
 			WrittenToDacValue[WritingToDac_Channel] = InstantaneousSetpointDacValue[WritingToDac_Channel];

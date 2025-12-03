@@ -23,7 +23,7 @@
 #define NEAR_ZERO_REGION_IN_DAC_UNITS	15
 
 /// This constant defines the maximum rate of change of current
-/// 1 DAC unit = aprox. 0.05% of 10A
+/// 1 DAC unit = aprox. 0.05% of 10A (5 mA)
 #define FAST_RAMP_STEP_IN_DAC_UNITS		30
 
 /// This constant defines the rate of change of current near zero
@@ -53,7 +53,7 @@ uint16_t InstantaneousSetpointDacValue[NUMBER_OF_POWER_SUPPLIES];
 uint16_t WrittenToDacValue[NUMBER_OF_POWER_SUPPLIES];
 
 /// @brief This variable is used in a simple state machine
-bool WritingToDac_IsValidData[NUMBER_OF_POWER_SUPPLIES];
+bool WriteToDacDataReady[NUMBER_OF_POWER_SUPPLIES];
 
 /// @brief The state of the power contactor: true=power on; false=power off
 atomic_bool IsMainContactorStateOn;
@@ -67,7 +67,7 @@ atomic_bool Sig2LastReadings[NUMBER_OF_POWER_SUPPLIES][SIG2_RECORD_SIZE];
 //---------------------------------------------------------------------------------------------------
 
 // This variable is used only in the timer interrupt
-static uint32_t WritingToDac_RampDelay[NUMBER_OF_POWER_SUPPLIES];
+static uint32_t RampStepDelay[NUMBER_OF_POWER_SUPPLIES];
 
 static uint32_t TransitionalDelay;
 
@@ -104,7 +104,7 @@ static bool psuFsmShutingDownSwitchOff(void);
 // Function definitions
 //---------------------------------------------------------------------------------------------------
 
-/// @brief This function initializes the module variables and peripherals.
+/// @brief This function initializes the module variables and peripherals
 void initializePsuTalks(void){
 	atomic_store_explicit( &PsuState, PSU_STOPPED, memory_order_release );
 	atomic_store_explicit( &IsMainContactorStateOn, false, memory_order_release );
@@ -131,7 +131,7 @@ void setMainContactorState( bool NewState ){
 	gpio_put(GPIO_FOR_POWER_CONTACTOR, NewState);
 }
 
-/// @brief This function reads the logical state of the signal marked as "Sig2" in the diagram
+/// @brief This function reads the logical state of the signal Sig2
 bool getLogicFeedbackFromPsu( void ){
 
 #if SIMULATE_HARDWARE_PSU == 1
@@ -148,7 +148,8 @@ bool getLogicFeedbackFromPsu( void ){
 
 /// @brief This function supervises ramp execution after a step has been completed and handles orders for DACs
 /// @param Channel channel served in the last cycle
-/// @return synchronize channels
+/// @return true = reset channel index
+/// @return false = don't modify channel index
 bool psuStateMachine( uint32_t Channel ){
 	bool Result = false;
 	assert( Channel < NUMBER_OF_POWER_SUPPLIES );
@@ -181,7 +182,7 @@ bool psuStateMachine( uint32_t Channel ){
 
 	case PSU_INITIAL_SIG2_HIGH_TEST:
 		if (NUMBER_OF_POWER_SUPPLIES-1 == Channel){
-			psuFsmSig2HighTest();
+			Result = psuFsmSig2HighTest();
 		}
 		break;
 
@@ -248,7 +249,7 @@ static bool psuFsmStopped(void){
 	}
 
 	for (int J=0; J < NUMBER_OF_POWER_SUPPLIES; J++ ){
-		WritingToDac_IsValidData[J] = false;
+		WriteToDacDataReady[J] = false;
 	}
 	return true;
 }
@@ -263,8 +264,8 @@ static bool psuFsmSig2LowSetDac(void){
 	// zeroing DACs
 	for (int J=0; J < NUMBER_OF_INSTALLED_PSU; J++ ){
 		InstantaneousSetpointDacValue[J] = 0;
-		WritingToDac_IsValidData[J] = true;
-		WritingToDac_RampDelay[J] = 0;
+		WriteToDacDataReady[J] = true;
+		RampStepDelay[J] = 0;
 	}
 	atomic_store_explicit( &PsuState, PSU_INITIAL_SIG2_LOW_TEST, memory_order_release );
 	TransitionalDelay = ANALOG_SIGNALS_STABILIZATION;
@@ -276,7 +277,7 @@ static bool psuFsmSig2LowTest(void){
 		// wait without writing via i2c
 		if (ANALOG_SIGNALS_STABILIZATION == TransitionalDelay){
 			for (int J=0; J < NUMBER_OF_INSTALLED_PSU; J++ ){
-				WritingToDac_IsValidData[J] = false;
+				WriteToDacDataReady[J] = false;
 			}
 		}
 		TransitionalDelay--;
@@ -284,7 +285,7 @@ static bool psuFsmSig2LowTest(void){
 	else{
 		// write down the same, in order to update the Sig2 reading
 		for (int J=0; J < NUMBER_OF_INSTALLED_PSU; J++ ){
-			WritingToDac_IsValidData[J] = true;
+			WriteToDacDataReady[J] = true;
 		}
 		atomic_store_explicit( &PsuState, PSU_INITIAL_SIG2_HIGH_SET_DAC, memory_order_release );
 	}
@@ -301,8 +302,8 @@ static bool psuFsmSig2HighSetDac(void){
 	// set DACs to the maximum
 	for (int J=0; J < NUMBER_OF_INSTALLED_PSU; J++ ){
 		InstantaneousSetpointDacValue[J] = FULL_SCALE_IN_DAC_UNITS;
-		WritingToDac_IsValidData[J] = true;
-		WritingToDac_RampDelay[J] = 0;
+		WriteToDacDataReady[J] = true;
+		RampStepDelay[J] = 0;
 	}
 	atomic_store_explicit( &PsuState, PSU_INITIAL_SIG2_HIGH_TEST, memory_order_release );
 	TransitionalDelay = ANALOG_SIGNALS_STABILIZATION;
@@ -314,7 +315,7 @@ static bool psuFsmSig2HighTest(void){
 		// wait without writing via i2c
 		if (ANALOG_SIGNALS_STABILIZATION == TransitionalDelay){
 			for (int J=0; J < NUMBER_OF_INSTALLED_PSU; J++ ){
-				WritingToDac_IsValidData[J] = false;
+				WriteToDacDataReady[J] = false;
 			}
 		}
 		TransitionalDelay--;
@@ -322,7 +323,7 @@ static bool psuFsmSig2HighTest(void){
 	else{
 		// write down the same, in order to update the Sig2 reading
 		for (int J=0; J < NUMBER_OF_INSTALLED_PSU; J++ ){
-			WritingToDac_IsValidData[J] = true;
+			WriteToDacDataReady[J] = true;
 		}
 		atomic_store_explicit( &PsuState, PSU_INITIAL_ZEROING, memory_order_release );
 	}
@@ -338,8 +339,8 @@ static bool psuFsmZeroing(){
 
 	for (int J=0; J < NUMBER_OF_INSTALLED_PSU; J++ ){
 		InstantaneousSetpointDacValue[J] = OFFSET_IN_DAC_UNITS;
-		WritingToDac_IsValidData[J] = true;
-		WritingToDac_RampDelay[J] = 0;
+		WriteToDacDataReady[J] = true;
+		RampStepDelay[J] = 0;
 	}
 	atomic_store_explicit( &PsuState, PSU_INITIAL_CONTACTOR_ON, memory_order_release );
 	TransitionalDelay = ANALOG_SIGNALS_LONG_STABILIZATION;
@@ -351,7 +352,7 @@ static bool psuFsmTurnContactorOn(void){
 		// wait without writing via i2c
 		if (ANALOG_SIGNALS_LONG_STABILIZATION == TransitionalDelay){
 			for (int J=0; J < NUMBER_OF_INSTALLED_PSU; J++ ){
-				WritingToDac_IsValidData[J] = false;
+				WriteToDacDataReady[J] = false;
 			}
 		}
 		TransitionalDelay--;
@@ -365,14 +366,14 @@ static bool psuFsmTurnContactorOn(void){
 		printf( "Sig2LastReadings:%s\n", convertSig2TableToText());
 
 		for (int J=0; J < NUMBER_OF_INSTALLED_PSU; J++ ){
-			WritingToDac_IsValidData[J] = false;
+			WriteToDacDataReady[J] = false;
 		}
 
 		for (int J=0; J < NUMBER_OF_INSTALLED_PSU; J++ ){
 			if (OFFSET_IN_DAC_UNITS != WrittenToDacValue[J]){
 				// something went wrong
 				for (int J=0; J < NUMBER_OF_POWER_SUPPLIES; J++ ){
-					WritingToDac_IsValidData[J] = false;
+					WriteToDacDataReady[J] = false;
 				}
 				atomic_store_explicit( &PsuState, PSU_STOPPED, memory_order_release );
 				return true;
@@ -410,8 +411,8 @@ static bool psuFsmRunning( uint32_t Channel ){
 
 		if (ORDER_COMMAND_PCI == TemporaryOrderCode){
 			InstantaneousSetpointDacValue[TemporaryUserSelectedChannel] = atomic_load_explicit( &UserSetpointDacValue[TemporaryUserSelectedChannel], memory_order_acquire );
-			WritingToDac_IsValidData[TemporaryUserSelectedChannel] = true;
-			WritingToDac_RampDelay[Channel] = 0;
+			WriteToDacDataReady[TemporaryUserSelectedChannel] = true;
+			RampStepDelay[Channel] = 0;
 			atomic_store_explicit( &OrderCode, ORDER_ACCEPTED, memory_order_release );
 		}
 
@@ -419,8 +420,8 @@ static bool psuFsmRunning( uint32_t Channel ){
 			InstantaneousSetpointDacValue[TemporaryUserSelectedChannel] =
 					calculateRampStep( atomic_load_explicit( &UserSetpointDacValue[TemporaryUserSelectedChannel], memory_order_acquire ),
 							WrittenToDacValue[TemporaryUserSelectedChannel] );
-			WritingToDac_IsValidData[TemporaryUserSelectedChannel] = true;
-			WritingToDac_RampDelay[TemporaryUserSelectedChannel] = 0;
+			WriteToDacDataReady[TemporaryUserSelectedChannel] = true;
+			RampStepDelay[TemporaryUserSelectedChannel] = 0;
 			atomic_store_explicit( &OrderCode, ORDER_ACCEPTED, memory_order_release );
 		}
 
@@ -428,8 +429,8 @@ static bool psuFsmRunning( uint32_t Channel ){
 			for (int J = 0; J < NUMBER_OF_INSTALLED_PSU; J++ ){
 				atomic_store_explicit( &UserSetpointDacValue[J], OFFSET_IN_DAC_UNITS, memory_order_release );
 				InstantaneousSetpointDacValue[J] = calculateRampStep( OFFSET_IN_DAC_UNITS, WrittenToDacValue[J] );
-				WritingToDac_IsValidData[J] = true;
-				WritingToDac_RampDelay[J] = 0;
+				WriteToDacDataReady[J] = true;
+				RampStepDelay[J] = 0;
 			}
 			atomic_store_explicit( &OrderCode, ORDER_ACCEPTED, memory_order_release );
 			atomic_store_explicit( &PsuState, PSU_SHUTTING_DOWN_ZEROING, memory_order_release );
@@ -441,28 +442,28 @@ static bool psuFsmRunning( uint32_t Channel ){
 	if (TemporaryUserSelectedChannel != Channel){
 		if (WrittenToDacValue[Channel] == atomic_load_explicit( &UserSetpointDacValue[Channel], memory_order_acquire )){
 			// there is nothing to do
-			WritingToDac_IsValidData[Channel] = false;
-			WritingToDac_RampDelay[Channel] = 0;
+			WriteToDacDataReady[Channel] = false;
+			RampStepDelay[Channel] = 0;
 		}
 		else{
 			// The ramp continuation
-			if (0 == WritingToDac_RampDelay[Channel]){
-				WritingToDac_RampDelay[Channel] = RAMP_DELAY;
+			if (0 == RampStepDelay[Channel]){
+				RampStepDelay[Channel] = RAMP_DELAY;
 			}
 			else{
-				WritingToDac_RampDelay[Channel]--;
+				RampStepDelay[Channel]--;
 			}
 
-			if (0 == WritingToDac_RampDelay[Channel]){
+			if (0 == RampStepDelay[Channel]){
 				// next ramp step
 				InstantaneousSetpointDacValue[Channel] =
 						calculateRampStep( atomic_load_explicit( &UserSetpointDacValue[Channel], memory_order_acquire ),
 								WrittenToDacValue[Channel] );
-				WritingToDac_IsValidData[Channel] = true;
+				WriteToDacDataReady[Channel] = true;
 			}
 			else{
 				// wait
-				WritingToDac_IsValidData[Channel] = false;
+				WriteToDacDataReady[Channel] = false;
 			}
 		}
 	}
@@ -476,8 +477,8 @@ static bool psuFsmShutingDownZeroing( uint32_t Channel ){
 	(void)PhysicalValue;  // So that the compiler doesn't complain
 
 	if (OFFSET_IN_DAC_UNITS == WrittenToDacValue[Channel]){
-		WritingToDac_IsValidData[Channel] = false;
-		WritingToDac_RampDelay[Channel] = 0;
+		WriteToDacDataReady[Channel] = false;
+		RampStepDelay[Channel] = 0;
 
 		for (int J = 0; J < NUMBER_OF_INSTALLED_PSU; J++ ){
 			if (OFFSET_IN_DAC_UNITS != WrittenToDacValue[J]){
@@ -492,21 +493,21 @@ static bool psuFsmShutingDownZeroing( uint32_t Channel ){
 	}
 	else{
 		// The ramp continuation
-		if (0 == WritingToDac_RampDelay[Channel]){
-			WritingToDac_RampDelay[Channel] = RAMP_DELAY;
+		if (0 == RampStepDelay[Channel]){
+			RampStepDelay[Channel] = RAMP_DELAY;
 		}
 		else{
-			WritingToDac_RampDelay[Channel]--;
+			RampStepDelay[Channel]--;
 		}
 
-		if (0 == WritingToDac_RampDelay[Channel]){
+		if (0 == RampStepDelay[Channel]){
 			// next ramp step
 			InstantaneousSetpointDacValue[Channel] = calculateRampStep( OFFSET_IN_DAC_UNITS, WrittenToDacValue[Channel] );
-			WritingToDac_IsValidData[Channel] = true;
+			WriteToDacDataReady[Channel] = true;
 		}
 		else{
 			// wait
-			WritingToDac_IsValidData[Channel] = false;
+			WriteToDacDataReady[Channel] = false;
 		}
 	}
 	return false;
@@ -517,7 +518,7 @@ static bool psuFsmShutingDownSwitchOff(void){
 		// wait without writing via i2c
 		if (ANALOG_SIGNALS_LONG_STABILIZATION == TransitionalDelay){
 			for (int J=0; J < NUMBER_OF_INSTALLED_PSU; J++ ){
-				WritingToDac_IsValidData[J] = false;
+				WriteToDacDataReady[J] = false;
 			}
 		}
 		TransitionalDelay--;
