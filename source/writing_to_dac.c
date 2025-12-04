@@ -198,19 +198,10 @@ void writeToDacStateMachine(void){
 		// eventual completion of the writing cycle
 		gpio_put( GPIO_FOR_NOT_WR_OUTPUT, true );
 
-		// State machine on the upper layer of software
+		// call the state machine on the upper layer of software
 		WritingToDac_Channel = psuStateMachine();
 
-		// Switch to the next channel and prepare for the next cycle
-//		if (SynchronizeChannels){
-//			WritingToDac_Channel = 0;
-//		}
-//		else{
-//			WritingToDac_Channel++;
-//			if (NUMBER_OF_POWER_SUPPLIES == WritingToDac_Channel){
-//				WritingToDac_Channel = 0;
-//			}
-//		}
+		// essential action of this low level state machine
 		if (WriteToDacDataReady[WritingToDac_Channel]){
 			WorkingDataForTwoPcf8574 = prepareDataForTwoPcf8574( InstantaneousSetpointDacValue[WritingToDac_Channel], AddressTable[WritingToDac_Channel] );
 		}
@@ -269,7 +260,7 @@ void writeToDacStateMachine(void){
 			uint32_t DacAddress = decodeDataSentToPcf8574s( &DebugValueWrittenToDac[0], DebugValueWrittenToPCFs ); // just for debugging
 			printf( "%s\ti2c\t%d\t%d\t%d\t%d\t%d\n",
 					timeTextForDebugging(),
-					WritingToDac_Channel,
+					WritingToDac_Channel+1,
 					WrittenToDacValue[0]-OFFSET_IN_DAC_UNITS,
 					WrittenToDacValue[1]-OFFSET_IN_DAC_UNITS,
 					WrittenToDacValue[2]-OFFSET_IN_DAC_UNITS,
@@ -306,19 +297,4 @@ void writeToDacStateMachine(void){
 
 	default:
 	}
-
-#if 0
-	// debugging
-	static WritingToDacStates OldStateCode;
-
-	if (!getPushButtonState()){
-		WritingToDac_State = WRITING_TO_DAC_SEND_1ST_BYTE;
-	}
-	if (OldStateCode != WritingToDac_State){
-		printf( "state %d\n", WritingToDac_State );
-		OldStateCode = WritingToDac_State;
-	}
-#endif
 }
-
-

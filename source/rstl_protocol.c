@@ -295,11 +295,12 @@ CommandErrors executeCommand(void){
 		}
 		else{
 			// essential action
-			snprintf( ResponseBuffer, COMMAND_BUFFER_LENGTH-1, "sig2%s err i2c %u %u uart %X\r\n>",
+			snprintf( ResponseBuffer, COMMAND_BUFFER_LENGTH-1, "sig2%s i2c %u %u uart %X fsm %u\r\n>",
 					convertSig2TableToText(),
 					(unsigned)atomic_load_explicit(&I2cConsecutiveErrors, memory_order_acquire),
 					(unsigned)atomic_load_explicit(&I2cMaxConsecutiveErrors, memory_order_acquire),
-					(unsigned)atomic_load_explicit(&UartError, memory_order_acquire) );
+					(unsigned)atomic_load_explicit(&UartError, memory_order_acquire),
+					(unsigned)atomic_load_explicit(&PsuState, memory_order_acquire));
 			transmitViaSerialPort( ResponseBuffer );
 		}
 		printf( "cmd st E=%d\n", ErrorCode );

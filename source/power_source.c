@@ -77,18 +77,6 @@ int main() {
     while (true) {
         // main loop
     	driveUserInterface();
-
-#if 0 // debugging
-    	int8_t Temporary = getEventPushButtonChange();
-    	if (Temporary != 0){
-    		printf("It's me, %d\n", Temporary);
-    		if (Temporary < 0){
-    			//						12345678901234567890123456789012
-    			transmitViaSerialPort( "Abcdefghijklmnopqrstuvwxyz12345." );
-    		}
-    	}
-#endif
-
     }
 }
 

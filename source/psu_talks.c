@@ -71,7 +71,7 @@ static uint32_t RampStepDelay[NUMBER_OF_POWER_SUPPLIES];
 
 static uint32_t TransitionalDelay;
 
-static int16_t FsmChannel;
+static uint16_t FsmChannel;
 
 static bool IsInitialCall;
 
@@ -152,19 +152,11 @@ bool getLogicFeedbackFromPsu( void ){
 
 }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
+/// @brief This function drives the higher-level state machine
+/// The function is called by the lower-level state machine in write_do_dac.c, which is called by
+/// the timer interrupt handler; the FSM state is stored in the PsuState variable and takes values
+/// from PsuOperatingStates.
+/// @return index of power supply channel that should be handled by the lower-level state machine
 uint16_t psuStateMachine(void){
 	int TemporaryPsuState = atomic_load_explicit( &PsuState, memory_order_acquire );
 	assert( TemporaryPsuState < PSU_ILLEGAL_STATE );
@@ -271,7 +263,7 @@ static void psuFsmSig2LowSetDac(void){
 		FsmChannel++;
 	}
 
-	if ((FsmChannel >= 0) && (FsmChannel <= NUMBER_OF_INSTALLED_PSU-1)){
+	if (FsmChannel < NUMBER_OF_INSTALLED_PSU){
 		// preparatory activities for switching on the contactor:  zeroing DACs
 		InstantaneousSetpointDacValue[FsmChannel] = 0;
 		WriteToDacDataReady[FsmChannel] = true;
@@ -300,7 +292,7 @@ static void psuFsmSig2LowTest(void){
 		else{
 			FsmChannel++;
 		}
-		if ((FsmChannel >= 0) && (FsmChannel <= NUMBER_OF_INSTALLED_PSU-1)){
+		if (FsmChannel < NUMBER_OF_INSTALLED_PSU){
 			// write down the same, in order to update the Sig2 reading
 			WriteToDacDataReady[FsmChannel] = true;
 		}
@@ -329,7 +321,7 @@ static void psuFsmSig2HighSetDac(void){
 		FsmChannel++;
 	}
 	// continue preparatory activities for switching on the contactor:  set DACs to the maximum
-	if ((FsmChannel >= 0) && (FsmChannel <= NUMBER_OF_INSTALLED_PSU-1)){
+	if (FsmChannel < NUMBER_OF_INSTALLED_PSU){
 		InstantaneousSetpointDacValue[FsmChannel] = FULL_SCALE_IN_DAC_UNITS;
 		WriteToDacDataReady[FsmChannel] = true;
 		RampStepDelay[FsmChannel] = 0;
@@ -357,7 +349,7 @@ static void psuFsmSig2HighTest(void){
 		else{
 			FsmChannel++;
 		}
-		if ((FsmChannel >= 0) && (FsmChannel <= NUMBER_OF_INSTALLED_PSU-1)){
+		if (FsmChannel < NUMBER_OF_INSTALLED_PSU){
 			// write down the same, in order to update the Sig2 reading
 			WriteToDacDataReady[FsmChannel] = true;
 		}
@@ -387,7 +379,7 @@ static void psuFsmZeroing(void){
 		FsmChannel++;
 	}
 	// continue preparatory activities for switching on the contactor:  set DACs to the maximum
-	if ((FsmChannel >= 0) && (FsmChannel <= NUMBER_OF_INSTALLED_PSU-1)){
+	if (FsmChannel < NUMBER_OF_INSTALLED_PSU){
 		InstantaneousSetpointDacValue[FsmChannel] = OFFSET_IN_DAC_UNITS;
 		WriteToDacDataReady[FsmChannel] = true;
 		RampStepDelay[FsmChannel] = 0;
@@ -445,6 +437,33 @@ static void psuFsmRunning(void){
 	assert( true == PhysicalValue );
 	(void)PhysicalValue;  // So that the compiler doesn't complain
 
+	FsmChannel++;
+	if (NUMBER_OF_POWER_SUPPLIES <= FsmChannel){
+		FsmChannel = 0;
+	}
+
+	// continuation of ramps
+	if (WrittenToDacValue[FsmChannel] == atomic_load_explicit( &UserSetpointDacValue[FsmChannel], memory_order_acquire )){
+		// there is nothing to do
+		WriteToDacDataReady[FsmChannel] = false;
+		RampStepDelay[FsmChannel] = 0;
+	}
+	else{
+		// the step continuation
+		if (0 != RampStepDelay[FsmChannel]){
+			RampStepDelay[FsmChannel]--;
+			WriteToDacDataReady[FsmChannel] = false;
+		}
+		else{
+			// next ramp step
+			InstantaneousSetpointDacValue[FsmChannel] =
+					calculateRampStep( atomic_load_explicit( &UserSetpointDacValue[FsmChannel], memory_order_acquire ),
+							WrittenToDacValue[FsmChannel] );
+			WriteToDacDataReady[FsmChannel] = true;
+			RampStepDelay[FsmChannel] = RAMP_DELAY;
+		}
+	}
+
 	// orders
 	uint16_t TemporaryOrderCode = atomic_load_explicit( &OrderCode, memory_order_acquire );
 	assert( TemporaryOrderCode < ORDER_COMMAND_ILLEGAL_CODE );
@@ -460,8 +479,7 @@ static void psuFsmRunning(void){
 
 		if (ORDER_COMMAND_PCI == TemporaryOrderCode){
 			InstantaneousSetpointDacValue[TemporaryUserSelectedChannel] = atomic_load_explicit( &UserSetpointDacValue[TemporaryUserSelectedChannel], memory_order_acquire );
-			WriteToDacDataReady[TemporaryUserSelectedChannel] = true;
-			RampStepDelay[TemporaryUserSelectedChannel] = 0;
+			RampStepDelay[TemporaryUserSelectedChannel] = RAMP_DELAY;
 			atomic_store_explicit( &OrderCode, ORDER_ACCEPTED, memory_order_release );
 		}
 
@@ -469,8 +487,7 @@ static void psuFsmRunning(void){
 			InstantaneousSetpointDacValue[TemporaryUserSelectedChannel] =
 					calculateRampStep( atomic_load_explicit( &UserSetpointDacValue[TemporaryUserSelectedChannel], memory_order_acquire ),
 							WrittenToDacValue[TemporaryUserSelectedChannel] );
-			WriteToDacDataReady[TemporaryUserSelectedChannel] = true;
-			RampStepDelay[TemporaryUserSelectedChannel] = 0;
+			RampStepDelay[TemporaryUserSelectedChannel] = RAMP_DELAY;
 			atomic_store_explicit( &OrderCode, ORDER_ACCEPTED, memory_order_release );
 		}
 
@@ -478,50 +495,13 @@ static void psuFsmRunning(void){
 			for (int J = 0; J < NUMBER_OF_INSTALLED_PSU; J++ ){
 				atomic_store_explicit( &UserSetpointDacValue[J], OFFSET_IN_DAC_UNITS, memory_order_release );
 				InstantaneousSetpointDacValue[J] = calculateRampStep( OFFSET_IN_DAC_UNITS, WrittenToDacValue[J] );
-				WriteToDacDataReady[J] = true;
-				RampStepDelay[J] = 0;
+				RampStepDelay[J] = RAMP_DELAY;
 			}
 			atomic_store_explicit( &OrderCode, ORDER_ACCEPTED, memory_order_release );
 			atomic_store_explicit( &PsuState, PSU_SHUTTING_DOWN_ZEROING, memory_order_release );
 			IsInitialCall = true;
 			FsmChannel = 0;
-			return;
 		}
-	}
-
-	// continuation of ramps
-	if (TemporaryUserSelectedChannel != FsmChannel){
-		if (WrittenToDacValue[FsmChannel] == atomic_load_explicit( &UserSetpointDacValue[FsmChannel], memory_order_acquire )){
-			// there is nothing to do
-			WriteToDacDataReady[FsmChannel] = false;
-			RampStepDelay[FsmChannel] = 0;
-		}
-		else{
-			// The ramp continuation
-			if (0 == RampStepDelay[FsmChannel]){
-				RampStepDelay[FsmChannel] = RAMP_DELAY;
-			}
-			else{
-				RampStepDelay[FsmChannel]--;
-			}
-
-			if (0 == RampStepDelay[FsmChannel]){
-				// next ramp step
-				InstantaneousSetpointDacValue[FsmChannel] =
-						calculateRampStep( atomic_load_explicit( &UserSetpointDacValue[FsmChannel], memory_order_acquire ),
-								WrittenToDacValue[FsmChannel] );
-				WriteToDacDataReady[FsmChannel] = true;
-			}
-			else{
-				// wait
-				WriteToDacDataReady[FsmChannel] = false;
-			}
-		}
-	}
-
-	FsmChannel++;
-	if (NUMBER_OF_POWER_SUPPLIES >= FsmChannel){
-		FsmChannel = 0;
 	}
 }
 
@@ -531,6 +511,13 @@ static void psuFsmShutingDownZeroing(void){
 	assert( true == PhysicalValue );
 	(void)PhysicalValue;  // So that the compiler doesn't complain
 
+	// continuation of ramps, if not all of them have ended
+
+	FsmChannel++;
+	if (NUMBER_OF_POWER_SUPPLIES <= FsmChannel){
+		FsmChannel = 0;
+	}
+
 	if (OFFSET_IN_DAC_UNITS == WrittenToDacValue[FsmChannel]){
 		WriteToDacDataReady[FsmChannel] = false;
 		RampStepDelay[FsmChannel] = 0;
@@ -538,12 +525,10 @@ static void psuFsmShutingDownZeroing(void){
 		for (int J = 0; J < NUMBER_OF_INSTALLED_PSU; J++ ){
 			if (OFFSET_IN_DAC_UNITS != WrittenToDacValue[J]){
 				// other channel is continuing its ramp
-
-				FsmChannel++;
-				if (NUMBER_OF_INSTALLED_PSU >= FsmChannel){
-					FsmChannel = 0;
-				}
 				return;
+			}
+			else{
+				WriteToDacDataReady[J] = false;
 			}
 		}
 		// all ramps are completed
@@ -554,27 +539,17 @@ static void psuFsmShutingDownZeroing(void){
 		return;
 	}
 	else{
-		// The ramp continuation
-		if (0 == RampStepDelay[FsmChannel]){
-			RampStepDelay[FsmChannel] = RAMP_DELAY;
-		}
-		else{
+		// the step continuation
+		if (0 != RampStepDelay[FsmChannel]){
 			RampStepDelay[FsmChannel]--;
-		}
-
-		if (0 == RampStepDelay[FsmChannel]){
-			// next ramp step
-			InstantaneousSetpointDacValue[FsmChannel] = calculateRampStep( OFFSET_IN_DAC_UNITS, WrittenToDacValue[FsmChannel] );
-			WriteToDacDataReady[FsmChannel] = true;
-		}
-		else{
-			// wait
 			WriteToDacDataReady[FsmChannel] = false;
 		}
-
-		FsmChannel++;
-		if (NUMBER_OF_INSTALLED_PSU >= FsmChannel){
-			FsmChannel = 0;
+		else{
+			// next ramp step
+			InstantaneousSetpointDacValue[FsmChannel] =
+					calculateRampStep( OFFSET_IN_DAC_UNITS, WrittenToDacValue[FsmChannel] );
+			WriteToDacDataReady[FsmChannel] = true;
+			RampStepDelay[FsmChannel] = RAMP_DELAY;
 		}
 	}
 }

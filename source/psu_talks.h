@@ -78,6 +78,11 @@ void setMainContactorState( bool NewState );
 /// @brief This function reads the logical state of the signal marked as "Sig2" in the diagram
 bool getLogicFeedbackFromPsu( void );
 
+/// @brief This function drives the higher-level state machine
+/// The function is called by the lower-level state machine in write_do_dac.c, which is called by
+/// the timer interrupt handler; the FSM state is stored in the PsuState variable and takes values
+/// from PsuOperatingStates.
+/// @return index of power supply channel that should be handled by the lower-level state machine
 uint16_t psuStateMachine(void);
 
 /// This function prepares information on Sig2 readings in text form

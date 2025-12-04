@@ -15,7 +15,7 @@
 // Macro directives
 //---------------------------------------------------------------------------------------------------
 
-#define COMMAND_BUFFER_LENGTH			(LONGEST_COMMAND_LENGTH+20)
+#define COMMAND_BUFFER_LENGTH			(LONGEST_COMMAND_LENGTH+30)
 
 #define ORDER_NONE						0
 #define ORDER_ACCEPTED					1
