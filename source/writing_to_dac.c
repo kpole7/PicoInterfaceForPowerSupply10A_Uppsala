@@ -164,9 +164,7 @@ void initializeWritingToDacs(void){
 	atomic_store_explicit( &I2cErrorsDisplay, false, memory_order_release );
 }
 
-/// @brief This function provides DAC write support for all power supplies
-/// This function drives the state machines of each PSU. Each PSU has its own state machine,
-/// which allows them to operate simultaneously. All state machines are identical.
+/// @brief This function handles communication with the power supply channels and invokes higher-level state machine handling (in psu_talks.c).
 /// This function is called periodically by the time interrupt handler.
 void writeToDacStateMachine(void){
 
@@ -201,18 +199,18 @@ void writeToDacStateMachine(void){
 		gpio_put( GPIO_FOR_NOT_WR_OUTPUT, true );
 
 		// State machine on the upper layer of software
-		bool SynchronizeChannels = psuStateMachine( WritingToDac_Channel );
+		WritingToDac_Channel = psuStateMachine();
 
 		// Switch to the next channel and prepare for the next cycle
-		if (SynchronizeChannels){
-			WritingToDac_Channel = 0;
-		}
-		else{
-			WritingToDac_Channel++;
-			if (NUMBER_OF_POWER_SUPPLIES == WritingToDac_Channel){
-				WritingToDac_Channel = 0;
-			}
-		}
+//		if (SynchronizeChannels){
+//			WritingToDac_Channel = 0;
+//		}
+//		else{
+//			WritingToDac_Channel++;
+//			if (NUMBER_OF_POWER_SUPPLIES == WritingToDac_Channel){
+//				WritingToDac_Channel = 0;
+//			}
+//		}
 		if (WriteToDacDataReady[WritingToDac_Channel]){
 			WorkingDataForTwoPcf8574 = prepareDataForTwoPcf8574( InstantaneousSetpointDacValue[WritingToDac_Channel], AddressTable[WritingToDac_Channel] );
 		}

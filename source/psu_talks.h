@@ -78,11 +78,7 @@ void setMainContactorState( bool NewState );
 /// @brief This function reads the logical state of the signal marked as "Sig2" in the diagram
 bool getLogicFeedbackFromPsu( void );
 
-/// @brief This function supervises ramp execution after a step has been completed and handles orders for DACs
-/// @param Channel channel served in the last cycle
-/// @return true = reset channel index
-/// @return false = don't modify channel index
-bool psuStateMachine( uint32_t Channel );
+uint16_t psuStateMachine(void);
 
 /// This function prepares information on Sig2 readings in text form
 char* convertSig2TableToText(void);

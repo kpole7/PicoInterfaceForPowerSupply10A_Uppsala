@@ -15,7 +15,9 @@
 /// #### 4.   Communication with the main unit via a serial port (UART0).
 /// The communication protocol is implemented in the `rstl_protocol.c` module.
 ///
-/// Abbreviations: PSU = power source unit;  FSM = finite state machine
+/// Abbreviations:
+///   PSU = power source unit;
+///   FSM = finite state machine
 
 #include <stdbool.h>	// just for Eclipse
 #include <stdio.h>		// just for debugging

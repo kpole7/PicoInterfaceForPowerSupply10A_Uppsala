@@ -71,6 +71,10 @@ static uint32_t RampStepDelay[NUMBER_OF_POWER_SUPPLIES];
 
 static uint32_t TransitionalDelay;
 
+static int16_t FsmChannel;
+
+static bool IsInitialCall;
+
 //---------------------------------------------------------------------------------------------------
 // Function prototypes
 //---------------------------------------------------------------------------------------------------
@@ -89,16 +93,16 @@ static uint32_t TransitionalDelay;
 /// @return setpoint value for DAC in the present ramp step
 static uint16_t calculateRampStep( uint16_t TargetValue, uint16_t PresentValue );
 
-static bool psuFsmStopped(void);
-static bool psuFsmSig2LowSetDac(void);
-static bool psuFsmSig2LowTest(void);
-static bool psuFsmSig2HighSetDac(void);
-static bool psuFsmSig2HighTest(void);
-static bool psuFsmZeroing(void);
-static bool psuFsmTurnContactorOn(void);
-static bool psuFsmRunning( uint32_t Channel );
-static bool psuFsmShutingDownZeroing( uint32_t Channel );
-static bool psuFsmShutingDownSwitchOff(void);
+static void psuFsmStopped(void);
+static void psuFsmSig2LowSetDac(void);
+static void psuFsmSig2LowTest(void);
+static void psuFsmSig2HighSetDac(void);
+static void psuFsmSig2HighTest(void);
+static void psuFsmZeroing(void);
+static void psuFsmTurnContactorOn(void);
+static void psuFsmRunning(void);
+static void psuFsmShutingDownZeroing(void);
+static void psuFsmShutingDownSwitchOff(void);
 
 //---------------------------------------------------------------------------------------------------
 // Function definitions
@@ -116,6 +120,8 @@ void initializePsuTalks(void){
 	}
 
 	initializeWritingToDacs();
+
+	IsInitialCall = true;
 
     gpio_init(GPIO_FOR_POWER_CONTACTOR);
     gpio_put(GPIO_FOR_POWER_CONTACTOR, false);
@@ -146,70 +152,62 @@ bool getLogicFeedbackFromPsu( void ){
 
 }
 
-/// @brief This function supervises ramp execution after a step has been completed and handles orders for DACs
-/// @param Channel channel served in the last cycle
-/// @return true = reset channel index
-/// @return false = don't modify channel index
-bool psuStateMachine( uint32_t Channel ){
-	bool Result = false;
-	assert( Channel < NUMBER_OF_POWER_SUPPLIES );
 
+
+
+
+
+
+
+
+
+
+
+
+
+uint16_t psuStateMachine(void){
 	int TemporaryPsuState = atomic_load_explicit( &PsuState, memory_order_acquire );
 	assert( TemporaryPsuState < PSU_ILLEGAL_STATE );
 
 	switch( TemporaryPsuState ){
 	case PSU_STOPPED:
-		Result = psuFsmStopped();
+		psuFsmStopped();
 		break;
 
 	case PSU_INITIAL_SIG2_LOW_SET_DAC:
-		if (NUMBER_OF_POWER_SUPPLIES-1 == Channel){
-			Result = psuFsmSig2LowSetDac();
-		}
+		psuFsmSig2LowSetDac();
 		break;
 
 	case PSU_INITIAL_SIG2_LOW_TEST:
-		if (NUMBER_OF_POWER_SUPPLIES-1 == Channel){
-			Result = psuFsmSig2LowTest();
-		}
+		psuFsmSig2LowTest();
 		break;
 
 	case PSU_INITIAL_SIG2_HIGH_SET_DAC:
-		if (NUMBER_OF_POWER_SUPPLIES-1 == Channel){
-			Result = psuFsmSig2HighSetDac();
-		}
+		psuFsmSig2HighSetDac();
 		break;
 
 	case PSU_INITIAL_SIG2_HIGH_TEST:
-		if (NUMBER_OF_POWER_SUPPLIES-1 == Channel){
-			Result = psuFsmSig2HighTest();
-		}
+		psuFsmSig2HighTest();
 		break;
 
 	case PSU_INITIAL_ZEROING:
-		if (NUMBER_OF_POWER_SUPPLIES-1 == Channel){
-			Result = psuFsmZeroing();
-		}
+		psuFsmZeroing();
 		break;
 
 	case PSU_INITIAL_CONTACTOR_ON:
-		if (NUMBER_OF_POWER_SUPPLIES-1 == Channel){
-			Result = psuFsmTurnContactorOn();
-		}
+		psuFsmTurnContactorOn();
 		break;
 
 	case PSU_RUNNING:
-		Result = psuFsmRunning( Channel );
+		psuFsmRunning();
 		break;
 
 	case PSU_SHUTTING_DOWN_ZEROING:
-		Result = psuFsmShutingDownZeroing( Channel );
+		psuFsmShutingDownZeroing();
 		break;
 
 	case PSU_SHUTTING_DOWN_CONTACTOR_OFF:
-		if (NUMBER_OF_POWER_SUPPLIES-1 == Channel){
-			Result = psuFsmShutingDownSwitchOff();
-		}
+		psuFsmShutingDownSwitchOff();
 		break;
 
 	default:
@@ -227,14 +225,23 @@ bool psuStateMachine( uint32_t Channel ){
 		OldPsuState = TemporaryPsuState;
 	}
 #endif
-	return Result;
+	return FsmChannel;
 }
 
-static bool psuFsmStopped(void){
+static void psuFsmStopped(void){
 	assert( false == atomic_load_explicit( &IsMainContactorStateOn, memory_order_acquire ));
 	bool PhysicalValue = gpio_get(GPIO_FOR_POWER_CONTACTOR);
 	assert( false == PhysicalValue );
 	(void)PhysicalValue; // So that the compiler doesn't complain
+
+	if (IsInitialCall){
+		IsInitialCall = false;
+
+		for (int J=0; J < NUMBER_OF_POWER_SUPPLIES; J++ ){
+			WriteToDacDataReady[J] = false;
+		}
+		FsmChannel = 0;
+	}
 
 	// orders
 	uint16_t TemporaryOrderCode = atomic_load_explicit( &OrderCode, memory_order_acquire );
@@ -245,116 +252,159 @@ static bool psuFsmStopped(void){
 		if (ORDER_COMMAND_POWER_UP == TemporaryOrderCode){
 			atomic_store_explicit( &OrderCode, ORDER_ACCEPTED, memory_order_release );
 			atomic_store_explicit( &PsuState, PSU_INITIAL_SIG2_LOW_SET_DAC, memory_order_release );
+			IsInitialCall = true;
 		}
 	}
-
-	for (int J=0; J < NUMBER_OF_POWER_SUPPLIES; J++ ){
-		WriteToDacDataReady[J] = false;
-	}
-	return true;
 }
 
-static bool psuFsmSig2LowSetDac(void){
+static void psuFsmSig2LowSetDac(void){
 	assert( false == atomic_load_explicit( &IsMainContactorStateOn, memory_order_acquire ));
 	bool PhysicalValue = gpio_get(GPIO_FOR_POWER_CONTACTOR);
 	assert( false == PhysicalValue );
 	(void)PhysicalValue; // So that the compiler doesn't complain
 
-	// continue preparatory activities for switching on the contactor:
-	// zeroing DACs
-	for (int J=0; J < NUMBER_OF_INSTALLED_PSU; J++ ){
-		InstantaneousSetpointDacValue[J] = 0;
-		WriteToDacDataReady[J] = true;
-		RampStepDelay[J] = 0;
+	if (IsInitialCall){
+		IsInitialCall = false;
+		FsmChannel = 0;
 	}
-	atomic_store_explicit( &PsuState, PSU_INITIAL_SIG2_LOW_TEST, memory_order_release );
-	TransitionalDelay = ANALOG_SIGNALS_STABILIZATION;
-	return true;
+	else{
+		FsmChannel++;
+	}
+
+	if ((FsmChannel >= 0) && (FsmChannel <= NUMBER_OF_INSTALLED_PSU-1)){
+		// preparatory activities for switching on the contactor:  zeroing DACs
+		InstantaneousSetpointDacValue[FsmChannel] = 0;
+		WriteToDacDataReady[FsmChannel] = true;
+		RampStepDelay[FsmChannel] = 0;
+	}
+	else{
+		for (int J=0; J < NUMBER_OF_INSTALLED_PSU; J++ ){
+			WriteToDacDataReady[J] = false;
+		}
+		atomic_store_explicit( &PsuState, PSU_INITIAL_SIG2_LOW_TEST, memory_order_release );
+		IsInitialCall = true;
+		TransitionalDelay = ANALOG_SIGNALS_STABILIZATION;
+		FsmChannel = 0;
+	}
 }
 
-static bool psuFsmSig2LowTest(void){
+static void psuFsmSig2LowTest(void){
 	if (0 != TransitionalDelay){
-		// wait without writing via i2c
-		if (ANALOG_SIGNALS_STABILIZATION == TransitionalDelay){
-			for (int J=0; J < NUMBER_OF_INSTALLED_PSU; J++ ){
-				WriteToDacDataReady[J] = false;
-			}
-		}
 		TransitionalDelay--;
 	}
 	else{
-		// write down the same, in order to update the Sig2 reading
-		for (int J=0; J < NUMBER_OF_INSTALLED_PSU; J++ ){
-			WriteToDacDataReady[J] = true;
+		if (IsInitialCall){
+			IsInitialCall = false;
+			FsmChannel = 0;
 		}
-		atomic_store_explicit( &PsuState, PSU_INITIAL_SIG2_HIGH_SET_DAC, memory_order_release );
+		else{
+			FsmChannel++;
+		}
+		if ((FsmChannel >= 0) && (FsmChannel <= NUMBER_OF_INSTALLED_PSU-1)){
+			// write down the same, in order to update the Sig2 reading
+			WriteToDacDataReady[FsmChannel] = true;
+		}
+		else{
+			for (int J=0; J < NUMBER_OF_INSTALLED_PSU; J++ ){
+				WriteToDacDataReady[J] = false;
+			}
+			atomic_store_explicit( &PsuState, PSU_INITIAL_SIG2_HIGH_SET_DAC, memory_order_release );
+			IsInitialCall = true;
+			FsmChannel = 0;
+		}
 	}
-	return true;
 }
 
-static bool psuFsmSig2HighSetDac(void){
+static void psuFsmSig2HighSetDac(void){
 	assert( false == atomic_load_explicit( &IsMainContactorStateOn, memory_order_acquire ));
 	bool PhysicalValue = gpio_get(GPIO_FOR_POWER_CONTACTOR);
 	assert( false == PhysicalValue );
 	(void)PhysicalValue; // So that the compiler doesn't complain
 
-	// continue preparatory activities for switching on the contactor:
-	// set DACs to the maximum
-	for (int J=0; J < NUMBER_OF_INSTALLED_PSU; J++ ){
-		InstantaneousSetpointDacValue[J] = FULL_SCALE_IN_DAC_UNITS;
-		WriteToDacDataReady[J] = true;
-		RampStepDelay[J] = 0;
+	if (IsInitialCall){
+		IsInitialCall = false;
+		FsmChannel = 0;
 	}
-	atomic_store_explicit( &PsuState, PSU_INITIAL_SIG2_HIGH_TEST, memory_order_release );
-	TransitionalDelay = ANALOG_SIGNALS_STABILIZATION;
-	return true;
+	else{
+		FsmChannel++;
+	}
+	// continue preparatory activities for switching on the contactor:  set DACs to the maximum
+	if ((FsmChannel >= 0) && (FsmChannel <= NUMBER_OF_INSTALLED_PSU-1)){
+		InstantaneousSetpointDacValue[FsmChannel] = FULL_SCALE_IN_DAC_UNITS;
+		WriteToDacDataReady[FsmChannel] = true;
+		RampStepDelay[FsmChannel] = 0;
+	}
+	else{
+		for (int J=0; J < NUMBER_OF_INSTALLED_PSU; J++ ){
+			WriteToDacDataReady[J] = false;
+		}
+		atomic_store_explicit( &PsuState, PSU_INITIAL_SIG2_HIGH_TEST, memory_order_release );
+		TransitionalDelay = ANALOG_SIGNALS_STABILIZATION;
+		IsInitialCall = true;
+		FsmChannel = 0;
+	}
 }
 
-static bool psuFsmSig2HighTest(void){
+static void psuFsmSig2HighTest(void){
 	if (0 != TransitionalDelay){
-		// wait without writing via i2c
-		if (ANALOG_SIGNALS_STABILIZATION == TransitionalDelay){
-			for (int J=0; J < NUMBER_OF_INSTALLED_PSU; J++ ){
-				WriteToDacDataReady[J] = false;
-			}
-		}
 		TransitionalDelay--;
 	}
 	else{
-		// write down the same, in order to update the Sig2 reading
-		for (int J=0; J < NUMBER_OF_INSTALLED_PSU; J++ ){
-			WriteToDacDataReady[J] = true;
+		if (IsInitialCall){
+			IsInitialCall = false;
+			FsmChannel = 0;
 		}
-		atomic_store_explicit( &PsuState, PSU_INITIAL_ZEROING, memory_order_release );
+		else{
+			FsmChannel++;
+		}
+		if ((FsmChannel >= 0) && (FsmChannel <= NUMBER_OF_INSTALLED_PSU-1)){
+			// write down the same, in order to update the Sig2 reading
+			WriteToDacDataReady[FsmChannel] = true;
+		}
+		else{
+			for (int J=0; J < NUMBER_OF_INSTALLED_PSU; J++ ){
+				WriteToDacDataReady[J] = false;
+			}
+			atomic_store_explicit( &PsuState, PSU_INITIAL_ZEROING, memory_order_release );
+			IsInitialCall = true;
+			FsmChannel = 0;
+		}
 	}
-	return true;
 }
 
-static bool psuFsmZeroing(){
+static void psuFsmZeroing(void){
 	// zeroing before switching on the contactor
 	assert( false == atomic_load_explicit( &IsMainContactorStateOn, memory_order_acquire ));
 	bool PhysicalValue = gpio_get(GPIO_FOR_POWER_CONTACTOR);
 	assert( false == PhysicalValue );
 	(void)PhysicalValue; // So that the compiler doesn't complain
 
-	for (int J=0; J < NUMBER_OF_INSTALLED_PSU; J++ ){
-		InstantaneousSetpointDacValue[J] = OFFSET_IN_DAC_UNITS;
-		WriteToDacDataReady[J] = true;
-		RampStepDelay[J] = 0;
+	if (IsInitialCall){
+		IsInitialCall = false;
+		FsmChannel = 0;
 	}
-	atomic_store_explicit( &PsuState, PSU_INITIAL_CONTACTOR_ON, memory_order_release );
-	TransitionalDelay = ANALOG_SIGNALS_LONG_STABILIZATION;
-	return true;
+	else{
+		FsmChannel++;
+	}
+	// continue preparatory activities for switching on the contactor:  set DACs to the maximum
+	if ((FsmChannel >= 0) && (FsmChannel <= NUMBER_OF_INSTALLED_PSU-1)){
+		InstantaneousSetpointDacValue[FsmChannel] = OFFSET_IN_DAC_UNITS;
+		WriteToDacDataReady[FsmChannel] = true;
+		RampStepDelay[FsmChannel] = 0;
+	}
+	else{
+		for (int J=0; J < NUMBER_OF_INSTALLED_PSU; J++ ){
+			WriteToDacDataReady[J] = false;
+		}
+		atomic_store_explicit( &PsuState, PSU_INITIAL_CONTACTOR_ON, memory_order_release );
+		TransitionalDelay = ANALOG_SIGNALS_LONG_STABILIZATION;
+		IsInitialCall = true;
+		FsmChannel = 0;
+	}
 }
 
-static bool psuFsmTurnContactorOn(void){
+static void psuFsmTurnContactorOn(void){
 	if (0 != TransitionalDelay){
-		// wait without writing via i2c
-		if (ANALOG_SIGNALS_LONG_STABILIZATION == TransitionalDelay){
-			for (int J=0; J < NUMBER_OF_INSTALLED_PSU; J++ ){
-				WriteToDacDataReady[J] = false;
-			}
-		}
 		TransitionalDelay--;
 	}
 	else{
@@ -366,17 +416,15 @@ static bool psuFsmTurnContactorOn(void){
 		printf( "Sig2LastReadings:%s\n", convertSig2TableToText());
 
 		for (int J=0; J < NUMBER_OF_INSTALLED_PSU; J++ ){
-			WriteToDacDataReady[J] = false;
-		}
-
-		for (int J=0; J < NUMBER_OF_INSTALLED_PSU; J++ ){
 			if (OFFSET_IN_DAC_UNITS != WrittenToDacValue[J]){
 				// something went wrong
 				for (int J=0; J < NUMBER_OF_POWER_SUPPLIES; J++ ){
 					WriteToDacDataReady[J] = false;
 				}
 				atomic_store_explicit( &PsuState, PSU_STOPPED, memory_order_release );
-				return true;
+				IsInitialCall = true;
+				printf("\nInternal error in %s at line %d\n", __FILE__, __LINE__);
+				return;
 			}
 		}
 		atomic_store_explicit( &IsMainContactorStateOn, true, memory_order_release );
@@ -386,11 +434,12 @@ static bool psuFsmTurnContactorOn(void){
 				timeTextForDebugging());
 
 		atomic_store_explicit( &PsuState, PSU_RUNNING, memory_order_release );
+		IsInitialCall = true;
+		FsmChannel = 0;
 	}
-	return true;
 }
 
-static bool psuFsmRunning( uint32_t Channel ){
+static void psuFsmRunning(void){
 	assert( true == atomic_load_explicit( &IsMainContactorStateOn, memory_order_acquire ));
 	bool PhysicalValue = gpio_get(GPIO_FOR_POWER_CONTACTOR);
 	assert( true == PhysicalValue );
@@ -412,7 +461,7 @@ static bool psuFsmRunning( uint32_t Channel ){
 		if (ORDER_COMMAND_PCI == TemporaryOrderCode){
 			InstantaneousSetpointDacValue[TemporaryUserSelectedChannel] = atomic_load_explicit( &UserSetpointDacValue[TemporaryUserSelectedChannel], memory_order_acquire );
 			WriteToDacDataReady[TemporaryUserSelectedChannel] = true;
-			RampStepDelay[Channel] = 0;
+			RampStepDelay[TemporaryUserSelectedChannel] = 0;
 			atomic_store_explicit( &OrderCode, ORDER_ACCEPTED, memory_order_release );
 		}
 
@@ -434,95 +483,105 @@ static bool psuFsmRunning( uint32_t Channel ){
 			}
 			atomic_store_explicit( &OrderCode, ORDER_ACCEPTED, memory_order_release );
 			atomic_store_explicit( &PsuState, PSU_SHUTTING_DOWN_ZEROING, memory_order_release );
-			return false;
+			IsInitialCall = true;
+			FsmChannel = 0;
+			return;
 		}
 	}
 
 	// continuation of ramps
-	if (TemporaryUserSelectedChannel != Channel){
-		if (WrittenToDacValue[Channel] == atomic_load_explicit( &UserSetpointDacValue[Channel], memory_order_acquire )){
+	if (TemporaryUserSelectedChannel != FsmChannel){
+		if (WrittenToDacValue[FsmChannel] == atomic_load_explicit( &UserSetpointDacValue[FsmChannel], memory_order_acquire )){
 			// there is nothing to do
-			WriteToDacDataReady[Channel] = false;
-			RampStepDelay[Channel] = 0;
+			WriteToDacDataReady[FsmChannel] = false;
+			RampStepDelay[FsmChannel] = 0;
 		}
 		else{
 			// The ramp continuation
-			if (0 == RampStepDelay[Channel]){
-				RampStepDelay[Channel] = RAMP_DELAY;
+			if (0 == RampStepDelay[FsmChannel]){
+				RampStepDelay[FsmChannel] = RAMP_DELAY;
 			}
 			else{
-				RampStepDelay[Channel]--;
+				RampStepDelay[FsmChannel]--;
 			}
 
-			if (0 == RampStepDelay[Channel]){
+			if (0 == RampStepDelay[FsmChannel]){
 				// next ramp step
-				InstantaneousSetpointDacValue[Channel] =
-						calculateRampStep( atomic_load_explicit( &UserSetpointDacValue[Channel], memory_order_acquire ),
-								WrittenToDacValue[Channel] );
-				WriteToDacDataReady[Channel] = true;
+				InstantaneousSetpointDacValue[FsmChannel] =
+						calculateRampStep( atomic_load_explicit( &UserSetpointDacValue[FsmChannel], memory_order_acquire ),
+								WrittenToDacValue[FsmChannel] );
+				WriteToDacDataReady[FsmChannel] = true;
 			}
 			else{
 				// wait
-				WriteToDacDataReady[Channel] = false;
+				WriteToDacDataReady[FsmChannel] = false;
 			}
 		}
 	}
-	return false;
+
+	FsmChannel++;
+	if (NUMBER_OF_INSTALLED_PSU >= FsmChannel){
+		FsmChannel = 0;
+	}
 }
 
-static bool psuFsmShutingDownZeroing( uint32_t Channel ){
+static void psuFsmShutingDownZeroing(void){
 	assert( true == atomic_load_explicit( &IsMainContactorStateOn, memory_order_acquire ));
 	bool PhysicalValue = gpio_get(GPIO_FOR_POWER_CONTACTOR);
 	assert( true == PhysicalValue );
 	(void)PhysicalValue;  // So that the compiler doesn't complain
 
-	if (OFFSET_IN_DAC_UNITS == WrittenToDacValue[Channel]){
-		WriteToDacDataReady[Channel] = false;
-		RampStepDelay[Channel] = 0;
+	if (OFFSET_IN_DAC_UNITS == WrittenToDacValue[FsmChannel]){
+		WriteToDacDataReady[FsmChannel] = false;
+		RampStepDelay[FsmChannel] = 0;
 
 		for (int J = 0; J < NUMBER_OF_INSTALLED_PSU; J++ ){
 			if (OFFSET_IN_DAC_UNITS != WrittenToDacValue[J]){
 				// other channel is continuing its ramp
-				return false;
+
+				FsmChannel++;
+				if (NUMBER_OF_INSTALLED_PSU >= FsmChannel){
+					FsmChannel = 0;
+				}
+				return;
 			}
 		}
 		// all ramps are completed
 		atomic_store_explicit( &PsuState, PSU_SHUTTING_DOWN_CONTACTOR_OFF, memory_order_release );
+		IsInitialCall = true;
 		TransitionalDelay = ANALOG_SIGNALS_LONG_STABILIZATION;
-		return true;
+		FsmChannel = 0;
+		return;
 	}
 	else{
 		// The ramp continuation
-		if (0 == RampStepDelay[Channel]){
-			RampStepDelay[Channel] = RAMP_DELAY;
+		if (0 == RampStepDelay[FsmChannel]){
+			RampStepDelay[FsmChannel] = RAMP_DELAY;
 		}
 		else{
-			RampStepDelay[Channel]--;
+			RampStepDelay[FsmChannel]--;
 		}
 
-		if (0 == RampStepDelay[Channel]){
+		if (0 == RampStepDelay[FsmChannel]){
 			// next ramp step
-			InstantaneousSetpointDacValue[Channel] = calculateRampStep( OFFSET_IN_DAC_UNITS, WrittenToDacValue[Channel] );
-			WriteToDacDataReady[Channel] = true;
+			InstantaneousSetpointDacValue[FsmChannel] = calculateRampStep( OFFSET_IN_DAC_UNITS, WrittenToDacValue[FsmChannel] );
+			WriteToDacDataReady[FsmChannel] = true;
 		}
 		else{
 			// wait
-			WriteToDacDataReady[Channel] = false;
+			WriteToDacDataReady[FsmChannel] = false;
+		}
+
+		FsmChannel++;
+		if (NUMBER_OF_INSTALLED_PSU >= FsmChannel){
+			FsmChannel = 0;
 		}
 	}
-	return false;
 }
 
-static bool psuFsmShutingDownSwitchOff(void){
+static void psuFsmShutingDownSwitchOff(void){
 	if (0 != TransitionalDelay){
-		// wait without writing via i2c
-		if (ANALOG_SIGNALS_LONG_STABILIZATION == TransitionalDelay){
-			for (int J=0; J < NUMBER_OF_INSTALLED_PSU; J++ ){
-				WriteToDacDataReady[J] = false;
-			}
-		}
 		TransitionalDelay--;
-		return true;
 	}
 	else{
 		assert( true == atomic_load_explicit( &IsMainContactorStateOn, memory_order_acquire ));
@@ -537,8 +596,8 @@ static bool psuFsmShutingDownSwitchOff(void){
 				timeTextForDebugging());
 
 		atomic_store_explicit( &PsuState, PSU_STOPPED, memory_order_release );
+		IsInitialCall = true;
 	}
-	return false;
 }
 
 static uint16_t calculateRampStep( uint16_t TargetValue, uint16_t PresentValue ){
