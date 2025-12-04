@@ -33,7 +33,7 @@
 /// For RAMP_DELAY==8, one step of the ramp takes 88 ms (11.4 Hz)
 #define RAMP_DELAY						8
 
-#define ANALOG_SIGNALS_STABILIZATION		120
+#define ANALOG_SIGNALS_STABILIZATION		480
 #define ANALOG_SIGNALS_LONG_STABILIZATION	(2*ANALOG_SIGNALS_STABILIZATION)
 
 //---------------------------------------------------------------------------------------------------
@@ -520,7 +520,7 @@ static void psuFsmRunning(void){
 	}
 
 	FsmChannel++;
-	if (NUMBER_OF_INSTALLED_PSU >= FsmChannel){
+	if (NUMBER_OF_POWER_SUPPLIES >= FsmChannel){
 		FsmChannel = 0;
 	}
 }
